@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MeowTileKit</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #0f0f13; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column;
+}
+
+/* ── header ── */
+header {
+  background: #1a1a24; padding: 14px 24px; display: flex; align-items: center;
+  gap: 12px; border-bottom: 1px solid #2a2a3a; flex-shrink: 0;
+}
+header h1 { font-size: 18px; font-weight: 600; color: #fff; }
+header .ver { color: #555; font-size: 12px; }
+
+/* ── tabs ── */
+nav {
+  display: flex; gap: 0; background: #14141e; padding: 0 24px; flex-shrink: 0;
+  border-bottom: 1px solid #2a2a3a;
+}
+nav button {
+  background: none; border: none; color: #777; padding: 12px 20px; font-size: 14px;
+  cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s;
+}
+nav button:hover { color: #aaa; }
+nav button.active { color: #4a9eff; border-bottom-color: #4a9eff; }
+
+/* ── tab content ── */
+.tab-content { display: none; flex: 1; overflow: auto; }
+.tab-content.active { display: flex; flex-direction: column; }
+
+/* ── tab: coord ── */
+#tab-coord { padding: 24px; align-items: center; }
+.coord-box {
+  background: #1a1a24; border-radius: 12px; padding: 24px; width: 100%; max-width: 640px;
+  border: 1px solid #2a2a3a;
+}
+.coord-box h2 { font-size: 15px; margin-bottom: 16px; color: #ccc; }
+.coord-box .row { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin-bottom: 16px; }
+.coord-box .field { display: flex; flex-direction: column; gap: 4px; }
+.coord-box .field label { font-size: 12px; color: #666; }
+.coord-box .field input {
+  background: #252533; color: #e0e0e0; border: 1px solid #333; border-radius: 6px;
+  padding: 8px 12px; font-size: 14px; width: 130px; outline: none; font-family: monospace;
+}
+.coord-box .field input:focus { border-color: #4a9eff; }
+.coord-box .presets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.coord-box .presets button {
+  background: #252533; color: #888; border: 1px solid #333; border-radius: 5px;
+  padding: 4px 10px; font-size: 11px; cursor: pointer;
+}
+.coord-box .presets button:hover { background: #2a2a3a; color: #ccc; }
+.coord-box .btn-primary {
+  background: #4a9eff; color: #fff; border: none; border-radius: 6px; padding: 8px 20px; font-size: 14px; cursor: pointer; height: 36px;
+}
+.coord-box .btn-primary:hover { background: #3a8eef; }
+
+table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+th, td { padding: 10px 14px; text-align: left; font-size: 13px; border-bottom: 1px solid #252533; }
+th { color: #666; font-weight: 500; font-size: 12px; }
+td { font-family: "SF Mono", Menlo, monospace; }
+.bdg { display: inline-block; padding: 1px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.bdg-w { background: #1a6b3c55; color: #6fcf97; }
+.bdg-g { background: #6b3a1a55; color: #f0ad4e; }
+.bdg-b { background: #4a1a6b55; color: #bb86fc; }
+#coord-status { margin-top: 12px; font-size: 13px; padding: 8px 12px; border-radius: 6px; }
+#coord-status.in { background: #6b3a1a33; color: #f0ad4e; }
+#coord-status.out { background: #1a6b3c33; color: #6fcf97; }
+.offset-info { margin-top: 12px; padding: 10px 14px; background: #14141e; border-radius: 8px; font-size: 13px; color: #888; line-height: 1.6; }
+
+/* ── tab: map ── */
+#tab-map { position: relative; }
+#tab-map #map { flex: 1; }
+.map-bar {
+  display: flex; gap: 10px; align-items: center; padding: 10px 16px;
+  background: #1a1a24; border-bottom: 1px solid #2a2a3a; flex-wrap: wrap; flex-shrink: 0;
+}
+.map-bar label { font-size: 12px; color: #888; }
+.map-bar select, .map-bar input {
+  background: #252533; color: #e0e0e0; border: 1px solid #333; border-radius: 5px;
+  padding: 5px 8px; font-size: 12px; outline: none;
+}
+.map-bar input { width: 72px; }
+.map-bar button {
+  background: #4a9eff; color: #fff; border: none; border-radius: 5px;
+  padding: 5px 14px; font-size: 12px; cursor: pointer;
+}
+.popup-coord { font: 12px/1.7 monospace; min-width: 220px; }
+.popup-coord .row { display: flex; justify-content: space-between; gap: 14px; }
+.popup-coord .row .lbl { color: #888; }
+.popup-coord .row .val { color: #1a1a2e; font-weight: 600; }
+.popup-coord .row .val.cn { color: #e65100; }
+.popup-coord .row .val.ov { color: #2e7d32; }
+.popup-coord .sep { border-top: 1px solid #eee; margin: 4px 0; }
+.popup-coord .row.sys { display: flex; align-items: center; gap: 6px; padding: 1px 0; }
+.popup-coord .row.sys .tag {
+  display: inline-block; font-size: 10px; font-weight: 700; padding: 0 6px; border-radius: 3px;
+  flex-shrink: 0; width: 58px; text-align: center; letter-spacing: 0.3px;
+}
+.popup-coord .row.sys .tag-wgs84  { background: #1a6b3c55; color: #6fcf97; }
+.popup-coord .row.sys .tag-gcj02  { background: #6b3a1a55; color: #f0ad4e; }
+.popup-coord .row.sys .tag-bd09   { background: #4a1a6b55; color: #bb86fc; }
+.popup-coord .row.sys .tag-cgcs2000 { background: #1a4a5c55; color: #4dd0e1; }
+.popup-coord .row.sys .tag-nad83  { background: #1a3a6b55; color: #64b5f6; }
+.popup-coord .row.sys .tag-etrs89 { background: #6b3a5a55; color: #f48fb1; }
+.popup-coord .row.sys .tag-pz90   { background: #5a4a1a55; color: #d4e157; }
+.popup-coord .row.sys .tag-itrf   { background: #3a3a5a55; color: #9fa8da; }
+.popup-coord .row.sys .sval {
+  font-size: 11px; font-family: monospace; color: #aaa; white-space: nowrap; overflow: hidden;
+}
+.popup-coord .row.sys .active-marker {
+  color: transparent; font-size: 12px; margin-left: auto; flex-shrink: 0;
+}
+.popup-coord .row.sys.active .sval { color: #e0e0e0; font-weight: 600; }
+.popup-coord .row.sys.active .active-marker { color: #4a9eff; }
+.popup-coord .row.sys.eq .sval { color: #666; font-size: 10px; }
+
+/* ── 定位模态框 ── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-card {
+  background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px;
+  width: 380px; max-width: 94vw; box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+}
+.modal-hd {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 18px; font-size: 15px; color: #e0e0e0;
+  border-bottom: 1px solid #2a2a3a;
+}
+.modal-x { cursor: pointer; color: #666; font-size: 18px; padding: 0 4px; }
+.modal-x:hover { color: #e0e0e0; }
+.modal-bd { padding: 14px 18px; }
+.modal-ft {
+  display: flex; gap: 8px; justify-content: end; padding: 12px 18px;
+  border-top: 1px solid #2a2a3a;
+}
+.mbtn {
+  background: #252533; color: #e0e0e0; border: 1px solid #333; border-radius: 6px;
+  padding: 6px 18px; font-size: 13px; cursor: pointer;
+}
+.mbtn:hover { background: #2a2a3a; }
+.mbtn-p { background: #4a9eff; border-color: #4a9eff; color: #fff; }
+.mbtn-p:hover { background: #3a8eef; }
+.loc-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+.loc-row .lf { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.loc-row .lf label { font-size: 11px; color: #666; }
+.loc-row .lf input, .loc-row .lf select {
+  background: #252533; color: #e0e0e0; border: 1px solid #333; border-radius: 4px;
+  padding: 5px 8px; font-size: 12px; outline: none; width: 100%;
+}
+.loc-row .lf input:focus { border-color: #4a9eff; }
+.loc-row .lf input.lg { width: 100%; }
+.loc-row .lf .hint { font-size: 10px; color: #555; }
+
+.popup-coord .fmt-bar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; }
+.popup-coord .fbtn {
+  background: #eee; border: 1px solid #ddd; border-radius: 3px; padding: 2px 2px;
+  font-size: 9px; cursor: pointer; color: #666; transition: all .12s; text-align: center;
+}
+.popup-coord .fbtn:hover { background: #ddd; }
+.popup-coord .fbtn.on { background: #4a9eff; color: #fff; border-color: #4a9eff; }
+
+/* ── tab: usage ── */
+#tab-usage { padding: 24px; overflow-y: auto; align-items: center; }
+.usage-box {
+  width: 100%; max-width: 720px;
+}
+.usage-box h2 { font-size: 16px; color: #ccc; margin-bottom: 8px; margin-top: 24px; }
+.usage-box h2:first-child { margin-top: 0; }
+.usage-box p { font-size: 13px; color: #888; margin-bottom: 8px; line-height: 1.6; }
+.usage-box pre {
+  background: #14141e; color: #e0e0e0; border-radius: 8px; padding: 16px; font-size: 13px;
+  overflow-x: auto; line-height: 1.6; border: 1px solid #2a2a3a; margin-bottom: 4px; position: relative;
+}
+.usage-box .copy-btn {
+  position: absolute; top: 8px; right: 8px; background: #252533; color: #888;
+  border: 1px solid #333; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;
+}
+.usage-box .copy-btn:hover { background: #333; }
+.usage-box code { color: #bb86fc; }
+.usage-box .comment { color: #555; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🗺 MeowTileKit</h1>
+  <span class="ver">v0.1.0</span>
+</header>
+
+<nav>
+  <button data-tab="coord">坐标转换</button>
+  <button class="active" data-tab="map">地图演示</button>
+  <button data-tab="usage">引用方式</button>
+</nav>
+
+<!-- ════════════ TAB: 坐标转换 ════════════ -->
+<div id="tab-coord" class="tab-content">
+  <div class="coord-box">
+    <h2>WGS-84 ↔ GCJ-02 ↔ BD-09 互转</h2>
+    <div class="presets">
+      <button data-lat="39.9042" data-lng="116.4074">北京天安门</button>
+      <button data-lat="31.2304" data-lng="121.4737">上海外滩</button>
+      <button data-lat="22.5431" data-lng="114.0579">深圳市民中心</button>
+      <button data-lat="40.7128" data-lng="-74.006">纽约(境外)</button>
+      <button data-lat="51.5074" data-lng="-0.1278">伦敦(境外)</button>
+    </div>
+    <div class="row">
+      <div class="field"><label>纬度 (WGS-84)</label><input id="c-lat" value="39.9042" step="any"></div>
+      <div class="field"><label>经度 (WGS-84)</label><input id="c-lng" value="116.4074" step="any"></div>
+      <button class="btn-primary" id="c-go">转换</button>
+      <button id="c-findme" style="background:#2a6b3c;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:14px;cursor:pointer;height:36px">📍 我的位置</button>
+    </div>
+    <div id="coord-status"></div>
+    <table>
+      <thead><tr><th style="width:90px">坐标系</th><th>纬度</th><th>经度</th><th>偏移</th></tr></thead>
+      <tbody>
+        <tr><td><span class="bdg bdg-w">WGS-84</span></td><td id="cw-lat">—</td><td id="cw-lng">—</td><td style="color:#666">基准</td></tr>
+        <tr><td><span class="bdg bdg-g">GCJ-02</span></td><td id="cg-lat">—</td><td id="cg-lng">—</td><td id="cg-delta" style="color:#f0ad4e">—</td></tr>
+        <tr><td><span class="bdg bdg-b">BD-09</span></td><td id="cb-lat">—</td><td id="cb-lng">—</td><td id="cb-delta" style="color:#bb86fc">—</td></tr>
+      </tbody>
+    </table>
+    <div class="offset-info" id="c-offset">输入坐标后点击"转换"查看偏移</div>
+  </div>
+</div>
+
+<!-- ════════════ TAB: 地图演示 ════════════ -->
+<div id="tab-map" class="tab-content active">
+  <div class="map-bar">
+    <label>地图源</label>
+    <select id="m-src">
+      <option value="osm" selected>OpenStreetMap (WGS-84)</option>
+      <option value="amap">高德地图 (GCJ-02)</option>
+      <option value="google">Google Maps (WGS-84)</option>
+      <option value="tencent">腾讯地图 (GCJ-02)</option>
+    </select>
+    <label>纬度</label><input id="m-lat" value="39.9042">
+    <label>经度</label><input id="m-lng" value="116.4074">
+    <button id="m-go">📍 定位</button>
+    <button id="m-findme" style="background:#2a6b3c">📍 我的位置</button>
+  </div>
+  <div id="map"></div>
+</div>
+
+<!-- ════════════ 定位模态框 ════════════ -->
+<div id="loc-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card">
+    <div class="modal-hd"><span>📍 定位</span><span class="modal-x" onclick="_closeModal()">✕</span></div>
+    <div class="modal-bd">
+      <label style="font-size:12px;color:#888">定位模式</label>
+      <select id="loc-mode" style="width:100%;margin:4px 0 12px;background:#252533;color:#e0e0e0;border:1px solid #333;border-radius:5px;padding:6px 8px;font-size:13px;outline:none">
+        <option value="dd">十进制坐标 (DD)</option>
+        <option value="dms">度分秒 (DMS)</option>
+        <option value="utm">UTM</option>
+        <option value="mgrs">MGRS</option>
+        <option value="olc">Plus Codes</option>
+      </select>
+      <div id="loc-fields"></div>
+      <div id="loc-err" style="color:#f44336;font-size:12px;margin-top:6px;display:none"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="mbtn" onclick="_closeModal()">取消</button>
+      <button class="mbtn mbtn-p" onclick="_doLocate()">定位</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ TAB: 引用方式 ════════════ -->
+<div id="tab-usage" class="tab-content">
+  <div class="usage-box">
+
+    <h2>方式一：&lt;script&gt; 标签（最快上手）</h2>
+    <p>直接在 HTML 中加载 IIFE 包，通过 <code>window.MeowTileKit</code> 访问所有 API。</p>
+    <pre><button class="copy-btn" data-code="usage1">复制</button>&lt;script src="http://localhost:3000/dist/index.global.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  const { wgs84ToGcj02, OSMSource, latLngToTile } = window.MeowTileKit;
+
+  const gcj = wgs84ToGcj02(39.9042, 116.4074);
+  console.log('GCJ-02:', gcj);
+
+  const url = new OSMSource().getTileUrl({ x: 123, y: 456, z: 13 });
+  console.log('瓦片 URL:', url);
+&lt;/script&gt;</pre>
+
+    <h2>方式二：ES Module</h2>
+    <p>现代浏览器支持 <code>type="module"</code> 直接 import。</p>
+    <pre><button class="copy-btn" data-code="usage2">复制</button>&lt;script type="module"&gt;
+  import { wgs84ToGcj02, AMapSource } from "http://localhost:3000/dist/index.js";
+
+  const gcj = wgs84ToGcj02(39.9042, 116.4074);
+  const src = new AMapSource({ style: 'satellite' });
+  console.log(src.getTileUrl({ x: 123, y: 456, z: 13 }));
+&lt;/script&gt;</pre>
+
+    <h2>方式三：npm + 构建工具</h2>
+    <p>生产项目推荐，配合 Vite / Webpack 使用。</p>
+    <pre><button class="copy-btn" data-code="usage3">复制</button>npm install meow-tile-kit</pre>
+    <pre><button class="copy-btn" data-code="usage4">复制</button>import { OSMSource, AMapSource, wgs84ToGcj02, latLngToTile, isInChina } from 'meow-tile-kit';
+
+// 配合 Leaflet
+const src = new AMapSource({ style: 'satellite' });
+L.tileLayer((c) => src.getTileUrl(c)).addTo(map);
+
+// 坐标转换
+const gcj = wgs84ToGcj02(39.9, 116.4);
+console.log('在中国?', isInChina(39.9, 116.4));</pre>
+
+    <h2>API 速览</h2>
+    <pre><button class="copy-btn" data-code="usage5">复制</button>// ── 地图源 ──
+new OSMSource()           // OpenStreetMap (WGS-84)
+new AMapSource({style})   // 高德地图 (GCJ-02)
+new GoogleSource({china}) // Google Maps (WGS-84 / GCJ-02)
+new TencentSource()       // 腾讯地图 (GCJ-02)
+new BMapSource()          // 百度地图 (BD-09)
+
+// ── 坐标转换 ──
+wgs84ToGcj02(lat, lng)   // WGS-84 → GCJ-02
+gcj02ToWgs84(lat, lng)   // GCJ-02 → WGS-84
+gcj02ToBd09(lat, lng)    // GCJ-02 → BD-09
+bd09ToGcj02(lat, lng)    // BD-09 → GCJ-02
+wgs84ToBd09(lat, lng)    // WGS-84 → BD-09
+isInChina(lat, lng)      // 是否在中国境内
+convertCoord(lat, lng, from, to) // 通用转换
+
+// ── 投影 ──
+latLngToTile(lat, lng, zoom)     // 经纬度 → 瓦片坐标
+tileToLatLng(x, y, z)            // 瓦片坐标 → 经纬度
+latLngToPixel(lat, lng, zoom)    // 经纬度 → 像素坐标</pre>
+  </div>
+</div>
+
+<!-- ── scripts ── -->
+<script src="/dist/index.global.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function() {
+const tk = window.MeowTileKit;
+if (!tk) { document.body.innerHTML = '❌ MeowTileKit 加载失败。请先运行 npm run build'; return; }
+
+// ════════════════════════════════════════════
+// localStorage 持久化
+// ════════════════════════════════════════════
+const LS = 'meowtk_';
+function save(k, v) { try { localStorage.setItem(LS + k, JSON.stringify(v)); } catch {} }
+function load(k, def) { try { const v = localStorage.getItem(LS + k); return v !== null ? JSON.parse(v) : def; } catch { return def; } }
+function saveAll() {
+  const p = marker.getLatLng();
+  save('tab', document.querySelector('nav .active')?.dataset?.tab || 'map');
+  save('src', curKey);
+  save('lat', p.lat);
+  save('lng', p.lng);
+  save('zoom', map.getZoom());
+  save('coordLat', document.getElementById('c-lat').value);
+  save('coordLng', document.getElementById('c-lng').value);
+}
+
+// ════════════════════════════════════════════
+// Tab 切换
+// ════════════════════════════════════════════
+document.querySelectorAll('nav button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'map' && map) setTimeout(() => map.invalidateSize(), 50);
+    save('tab', btn.dataset.tab);
+  });
+});
+
+// ════════════════════════════════════════════
+// TAB 1: 坐标转换
+// ════════════════════════════════════════════
+const PI = Math.PI;
+const A = 6378245;
+const EE = 0.00669342162296594323;
+function outOfChina(lat, lng) { return lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271; }
+function delta(lat, lng) {
+  function tLat(x, y) {
+    let r = -100 + 2*x + 3*y + 0.2*y*y + 0.1*x*y + 0.2*Math.sqrt(Math.abs(x));
+    r += (20*Math.sin(6*x*PI) + 20*Math.sin(2*x*PI)) * 2/3;
+    r += (20*Math.sin(y*PI) + 40*Math.sin(y/3*PI)) * 2/3;
+    r += (160*Math.sin(y/12*PI) + 320*Math.sin(y*PI/30)) * 2/3;
+    return r;
+  }
+  function tLng(x, y) {
+    let r = 300 + x + 2*y + 0.1*x*x + 0.1*x*y + 0.1*Math.sqrt(Math.abs(x));
+    r += (20*Math.sin(6*x*PI) + 20*Math.sin(2*x*PI)) * 2/3;
+    r += (20*Math.sin(x*PI) + 40*Math.sin(x/3*PI)) * 2/3;
+    r += (150*Math.sin(x/12*PI) + 300*Math.sin(x/30*PI)) * 2/3;
+    return r;
+  }
+  const dLat = tLat(lng - 105, lat - 35);
+  const dLng = tLng(lng - 105, lat - 35);
+  const rad = lat / 180 * PI;
+  const sinR = Math.sin(rad);
+  const sqrtR = Math.sqrt(1 - EE * sinR * sinR);
+  return {
+    lat: (dLat * 180) / ((A * (1 - EE)) / (sqrtR * sqrtR * sqrtR) * PI),
+    lng: (dLng * 180) / (A / sqrtR * Math.cos(rad) * PI),
+  };
+}
+function wgs84ToGcj02(lat, lng) { if (outOfChina(lat, lng)) return {lat,lng}; const d = delta(lat, lng); return {lat:lat+d.lat, lng:lng+d.lng}; }
+function gcj02ToBd09(lat, lng) {
+  const x=lng, y=lat, z=Math.sqrt(x*x+y*y)+0.00002*Math.sin(y*PI), θ=Math.atan2(y,x)+0.000003*Math.cos(x*PI);
+  return {lat:z*Math.sin(θ)+0.006, lng:z*Math.cos(θ)+0.0065};
+}
+function dist(lat1,lng1,lat2,lng2) {
+  const dlat=(lat2-lat1)*111320, dlng=(lat2-lng1)*111320*Math.cos((lat1+lat2)/2*PI/180);
+  return Math.sqrt(dlat*dlat+dlng*dlng);
+}
+
+function coordConvert() {
+  const lat = +document.getElementById('c-lat').value;
+  const lng = +document.getElementById('c-lng').value;
+  if (isNaN(lat) || isNaN(lng)) return;
+  const gcj = wgs84ToGcj02(lat, lng);
+  const bd = gcj02ToBd09(gcj.lat, gcj.lng);
+  const inCn = !outOfChina(lat, lng);
+
+  document.getElementById('cw-lat').textContent = lat.toFixed(6);
+  document.getElementById('cw-lng').textContent = lng.toFixed(6);
+  document.getElementById('cg-lat').textContent = gcj.lat.toFixed(6);
+  document.getElementById('cg-lng').textContent = gcj.lng.toFixed(6);
+  document.getElementById('cb-lat').textContent = bd.lat.toFixed(6);
+  document.getElementById('cb-lng').textContent = bd.lng.toFixed(6);
+
+  const st = document.getElementById('coord-status');
+  if (inCn) {
+    st.className = 'in';
+    st.innerHTML = '📍 该坐标在中国境内，使用 WGS-84 地图源会有偏移';
+  } else {
+    st.className = 'out';
+    st.innerHTML = '🌍 境外坐标，三个坐标系一致';
+  }
+
+  if (inCn) {
+    const gcjD = dist(lat, lng, gcj.lat, gcj.lng);
+    const bdD = dist(lat, lng, bd.lat, bd.lng);
+    document.getElementById('cg-delta').textContent = gcjD.toFixed(0) + 'm';
+    document.getElementById('cb-delta').textContent = bdD.toFixed(0) + 'm';
+    document.getElementById('c-offset').innerHTML =
+      `WGS-84 → GCJ-02 偏移 <b>${gcjD.toFixed(0)}m</b>，→ BD-09 偏移 <b>${bdD.toFixed(0)}m</b>。使用高德/腾讯时应先转 GCJ-02。`;
+  } else {
+    document.getElementById('cg-delta').textContent = '无偏移';
+    document.getElementById('cb-delta').textContent = '无偏移';
+    document.getElementById('c-offset').innerHTML = '境外坐标不受中国坐标加密影响，三个系统值相同。';
+  }
+  save('coordLat', document.getElementById('c-lat').value);
+  save('coordLng', document.getElementById('c-lng').value);
+}
+
+document.getElementById('c-go').addEventListener('click', coordConvert);
+document.querySelectorAll('#tab-coord .presets button').forEach(b => {
+  b.addEventListener('click', () => {
+    document.getElementById('c-lat').value = b.dataset.lat;
+    document.getElementById('c-lng').value = b.dataset.lng;
+    coordConvert();
+  });
+});
+['c-lat','c-lng'].forEach(id => document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') coordConvert(); }));
+
+// 恢复坐标转换 Tab 的输入值
+var savedCLat = load('coordLat', '39.9042');
+var savedCLng = load('coordLng', '116.4074');
+document.getElementById('c-lat').value = savedCLat;
+document.getElementById('c-lng').value = savedCLng;
+coordConvert();
+
+// ════════════════════════════════════════════
+// TAB 2: 地图演示
+// ════════════════════════════════════════════
+const {
+  OSMSource, AMapSource, GoogleSource, TencentSource,
+  wgs84ToGcj02: w2g, wgs84ToBd09: w2b, isInChina: iic, latLngToTile: ll2t
+} = tk;
+
+const mapSources = {
+  osm:     new OSMSource(),
+  amap:    new AMapSource(),
+  google:  new GoogleSource(),
+  tencent: new TencentSource(),
+};
+
+function centerFor(coordSys, lat, lng) {
+  if (coordSys === 'gcj02') { const c = w2g(lat, lng); return [c.lat, c.lng]; }
+  if (coordSys === 'bd09')  { const c = w2b(lat, lng); return [c.lat, c.lng]; }
+  return [lat, lng];
+}
+
+function makeLayer(src) {
+  const layer = L.tileLayer('', {
+    tileSize: src.tileSize, maxZoom: src.maxZoom, minZoom: src.minZoom, attribution: src.attribution,
+  });
+  layer.getTileUrl = (c) => src.getTileUrl(c);
+  return layer;
+}
+
+var savedSrc = load('src', 'osm');
+if (!mapSources[savedSrc]) savedSrc = 'osm';
+var savedLat = load('lat', 39.9042);
+var savedLng = load('lng', 116.4074);
+var savedZoom = load('zoom', 12);
+
+var map = L.map('map', { center: [savedLat, savedLng], zoom: savedZoom });
+var curKey = savedSrc, curLayer = null;
+var marker = L.marker([savedLat, savedLng], { draggable: true }).addTo(map);
+
+function switchSource(key) {
+  if (curLayer) map.removeLayer(curLayer);
+  curKey = key;
+  curLayer = makeLayer(mapSources[key]);
+  map.addLayer(curLayer);
+  const p = marker.getLatLng();
+  const c = centerFor(mapSources[key].coordSystem, p.lat, p.lng);
+  map.setView(c, map.getZoom());
+  if (marker.isPopupOpen()) marker.setPopupContent(popupHTML(p.lat, p.lng));
+  save('src', key);
+}
+
+// ── 坐标格式转换 ────────────────────────────
+var fmt = 'dd';
+var fmts = ['dd','dms','ddm','mgrs','utm','ecef','georef','olc','gars','maiden'];
+var fmtLabel = {dd:'DD °',dms:'DMS °\'"',ddm:'DDM °\'',mgrs:'MGRS',utm:'UTM',ecef:'ECEF',georef:'GEOREF',olc:'Plus',gars:'GARS',maiden:'Maiden'};
+
+function fmtDD(lat,lng) {
+  return (lat>=0?'N':'S')+Math.abs(lat).toFixed(5)+'°, '+(lng>=0?'E':'W')+Math.abs(lng).toFixed(5)+'°';
+}
+
+function fmtDMS(lat,lng) {
+  function dms(v,p,n){var a=Math.abs(v),d=Math.floor(a),m=Math.floor((a-d)*60),s=((a-d)*60-m)*60;return d+'°'+m+"'"+s.toFixed(2)+'"'+(v>=0?p:n);}
+  return dms(lat,'N','S')+', '+dms(lng,'E','W');
+}
+
+function fmtDDM(lat,lng) {
+  function ddm(v,p,n){var a=Math.abs(v),d=Math.floor(a),m=(a-d)*60;return d+'°'+m.toFixed(3)+"'"+(v>=0?p:n);}
+  return ddm(lat,'N','S')+', '+ddm(lng,'E','W');
+}
+
+// 共享 UTM 计算
+function calcUTM(lat,lng) {
+  if (lat>84||lat<-80) return null;
+  var zone=Math.floor((lng+180)/6)+1, cm=(zone-1)*6-180+3;
+  var band='CDEFGHJKLMNPQRSTUVWXX'[Math.min(Math.max(Math.floor((lat+80)/8),0),19)];
+  var a=6378137,f=1/298.257223563,e2=2*f-f*f,e4=e2*e2,e6=e4*e2;
+  var lR=lat*Math.PI/180, lngR=lng*Math.PI/180, cmR=cm*Math.PI/180, dl=lngR-cmR;
+  var n=a/Math.sqrt(1-e2*Math.sin(lR)*Math.sin(lR)), t=Math.tan(lR)*Math.tan(lR);
+  var c=e2/(1-e2)*Math.cos(lR)*Math.cos(lR), A=Math.cos(lR)*dl;
+  var a0=1-e2/4-3*e4/64-5*e6/256, a2=3/8*(e2+e4/4+15*e6/128), a4=15/256*(e4+3*e6/4), a6=35/3072*e6;
+  var M=a*(a0*lR-a2*Math.sin(2*lR)+a4*Math.sin(4*lR)-a6*Math.sin(6*lR));
+  var e=500000+0.9996*n*(A+(1-t+c)*A*A*A/6+(5-18*t+t*t+72*c-58*e2)*A*A*A*A*A/120);
+  var nrg=0.9996*(M+n*Math.tan(lR)*(A*A/2+(5-t+9*c+4*c*c)*A*A*A*A/24+(61-58*t+t*t+600*c-330*e2)*A*A*A*A*A*A/720));
+  if (lat<0) nrg+=10000000;
+  return {zone:zone,band:band,easting:e,northing:nrg};
+}
+
+function fmtMGRS(lat,lng) {
+  var u=calcUTM(lat,lng); if (!u) return '极区不可用';
+  var l='ABCDEFGHJKLMNPQRSTUV';
+  var ci=Math.floor(u.easting/100000)%20, ri=Math.floor(u.northing/100000)%20;
+  if (u.zone%2===0){ci=(ci+5)%20;ri=(ri+5)%20;}
+  return u.zone+u.band+' '+l[ci]+l[ri]+' '+String(Math.floor(u.easting%100000)).padStart(5,'0')+' '+String(Math.floor(u.northing%100000)).padStart(5,'0');
+}
+
+function fmtUTM(lat,lng) {
+  var u=calcUTM(lat,lng); if (!u) return '极区不可用';
+  return u.zone+u.band+' '+Math.round(u.easting)+'mE '+Math.round(u.northing)+'mN';
+}
+
+function fmtECEF(lat,lng) {
+  var a=6378137, f=1/298.257223563, e2=2*f-f*f;
+  var lR=lat*Math.PI/180, lnR=lng*Math.PI/180;
+  var n=a/Math.sqrt(1-e2*Math.sin(lR)*Math.sin(lR));
+  var x=(n)*Math.cos(lR)*Math.cos(lnR);
+  var y=(n)*Math.cos(lR)*Math.sin(lnR);
+  var z=(n*(1-e2))*Math.sin(lR);
+  return Math.round(x)+', '+Math.round(y)+', '+Math.round(z);
+}
+
+function fmtGEOREF(lat,lng) {
+  var lngB='ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.min(Math.floor((lng+180)/15),23)];
+  var latB='ABCDEFGHJKLM'[Math.min(Math.floor((lat+90)/15),11)];
+  var lngOff=Math.floor(((lng+180)%15)*60/15);
+  var latOff=Math.floor(((lat+90)%15)*60/15);
+  return lngB+latB+' '+lngOff+' '+latOff;
+}
+
+function fmtOLC(lat,lng) {
+  var a='23456789CFGHJMPQRVWX', latR=[-90,90], lngR=[-180,180], c='';
+  lat=Math.max(-90,Math.min(90,lat)); lng=((lng+180)%360)-180;
+  var halfLat=(latR[1]-latR[0])/20, halfLng=(lngR[1]-lngR[0])/20;
+  for (var i=0;i<10;i++) {
+    if (i%2===0) {
+      var idx=Math.floor((lng-lngR[0])/halfLng); c+=a[Math.min(idx,19)];
+      lngR=[lngR[0]+idx*halfLng, lngR[0]+(idx+1)*halfLng];
+    } else {
+      var idx=Math.floor((lat-latR[0])/halfLat); c+=a[Math.min(idx,19)];
+      latR=[latR[0]+idx*halfLat, latR[0]+(idx+1)*halfLat];
+    }
+    if (i===7) c+='+';
+    halfLat/=20; halfLng/=20;
+  }
+  return c;
+}
+
+function fmtGARS(lat,lng) {
+  var lngZ=Math.floor((lng+180)/0.5)+1;
+  var latZ=Math.floor((lat+90)/0.5)+1;
+  var lngR=((lng+180)%0.5)/0.5, latR=((lat+90)%0.5)/0.5;
+  var q=(latR<0.5?(lngR<0.5?'SW':'SE'):(lngR<0.5?'NW':'NE'));
+  return String(lngZ).padStart(3,'0')+String(latZ).padStart(3,'0')+q;
+}
+
+function fmtMaiden(lat,lng) {
+  var ln=lng+180, la=lat+90;
+  var lF=String.fromCharCode(65+Math.floor(ln/20));
+  var aF=String.fromCharCode(65+Math.floor(la/10));
+  var lS=Math.floor((ln%20)/2);
+  var aS=Math.floor(la%10);
+  var lSS=String.fromCharCode(65+Math.floor(((ln%20)%2)*60/5));
+  var aSS=String.fromCharCode(65+Math.floor(((la%10)%1)*60/2.5));
+  return lF+aF+lS+aS+lSS+aSS;
+}
+
+function coordStr(lat,lng) {
+  if (fmt==='dms') return fmtDMS(lat,lng);
+  if (fmt==='ddm') return fmtDDM(lat,lng);
+  if (fmt==='mgrs') return fmtMGRS(lat,lng);
+  if (fmt==='utm') return fmtUTM(lat,lng);
+  if (fmt==='ecef') return fmtECEF(lat,lng);
+  if (fmt==='georef') return fmtGEOREF(lat,lng);
+  if (fmt==='olc') return fmtOLC(lat,lng);
+  if (fmt==='gars') return fmtGARS(lat,lng);
+  if (fmt==='maiden') return fmtMaiden(lat,lng);
+  return fmtDD(lat,lng);
+}
+
+window._setFmt = function(f, e) {
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  fmt = f;
+  var p = marker.getLatLng();
+  marker.setPopupContent(popupHTML(p.lat, p.lng));
+  var c = marker.getPopup().getElement();
+  if (c) c.querySelectorAll('.fbtn').forEach(function(b) { b.classList.toggle('on', b.dataset.f === f); });
+};
+
+function popupHTML(lat, lng) {
+  var gcj = w2g(lat, lng);
+  var bd = w2b(lat, lng);
+  var tile = ll2t(lat, lng, map.getZoom());
+  var src = mapSources[curKey];
+  var cur = src.coordSystem;
+  function sysRow(sys, label, str, eq) {
+    var tagCls = 'tag-' + sys.replace(/[0-9]/g,'');
+    var activeCls = sys === cur ? ' active' : '';
+    var eqCls = eq ? ' eq' : '';
+    var marker = sys === cur ? '<span class="active-marker">◀</span>' : '';
+    var val = eq ? '<span class="sval">≈ WGS-84</span>' : '<span class="sval">' + str + '</span>';
+    return '<div class="row sys' + activeCls + eqCls + '"><span class="tag ' + tagCls + '">' + label + '</span>' + val + marker + '</div>';
+  }
+  return (
+    '<div class="popup-coord">' +
+      sysRow('wgs84',  'WGS-84',  coordStr(lat, lng)) +
+      sysRow('gcj02',  'GCJ-02',  coordStr(gcj.lat, gcj.lng)) +
+      sysRow('bd09',   'BD-09',   coordStr(bd.lat, bd.lng)) +
+      sysRow('cgcs2000','CGCS2000','', true) +
+      sysRow('nad83',  'NAD83',   '', true) +
+      sysRow('etrs89', 'ETRS89',  '', true) +
+      sysRow('pz90',   'PZ-90',   '', true) +
+      sysRow('itrf',   'ITRF',    '', true) +
+      '<div class="sep"></div>' +
+      '<div class="row"><span class="lbl">境内</span><span class="val ' + (iic(lat,lng) ? 'cn' : 'ov') + '">' + (iic(lat,lng) ? '是' : '否') + '</span></div>' +
+      '<div class="row"><span class="lbl">瓦片</span><span class="val">' + tile.z + '/' + tile.x + '/' + tile.y + '</span></div>' +
+      '<div class="row"><span class="lbl">地图源</span><span class="val">' + src.name + '</span></div>' +
+      '<div class="row"><span class="lbl">缩放</span><span class="val">' + map.getZoom() + '</span></div>' +
+      '<div class="sep"></div>' +
+      '<div class="fmt-bar">' +
+        fmts.map(function(f){return '<button class="fbtn'+(f===fmt?' on':'')+'" data-f="'+f+'" onclick="_setFmt(\''+f+'\',event)">'+fmtLabel[f]+'</button>';}).join('') +
+      '</div>' +
+    '</div>'
+  );
+}
+
+function showPopup(lat, lng) {
+  marker.setLatLng([lat, lng]);
+  marker.bindPopup(popupHTML(lat, lng)).openPopup();
+}
+
+// 阻止气泡内容穿透到地图
+marker.on('popupopen', function() {
+  var el = marker.getPopup().getElement();
+  if (el) { el.addEventListener('click', function(e) { e.stopPropagation(); }); }
+});
+
+document.getElementById('m-src').addEventListener('change', e => switchSource(e.target.value));
+document.getElementById('m-go').addEventListener('click', function() { window._openModal && window._openModal(); });
+marker.on('dragend', () => {
+  const p = marker.getLatLng();
+  document.getElementById('m-lat').value = p.lat.toFixed(6);
+  document.getElementById('m-lng').value = p.lng.toFixed(6);
+  if (marker.isPopupOpen()) marker.setPopupContent(popupHTML(p.lat, p.lng));
+});
+map.on('moveend', () => {
+  saveAll();
+});
+
+// ── 点击地图 ────────────────────────────────
+map.on('click', (e) => {
+  const { lat, lng } = e.latlng;
+  document.getElementById('m-lat').value = lat.toFixed(6);
+  document.getElementById('m-lng').value = lng.toFixed(6);
+  showPopup(lat, lng);
+});
+
+// ── 定位到我的位置 ──────────────────────────
+function findMe(opt) {
+  if (!navigator.geolocation) { alert('浏览器不支持地理定位'); return; }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      if (opt === 'map') {
+        const c = centerFor(mapSources[curKey].coordSystem, lat, lng);
+        map.setView(c, 15);
+        document.getElementById('m-lat').value = lat.toFixed(6);
+        document.getElementById('m-lng').value = lng.toFixed(6);
+        showPopup(lat, lng);
+      } else {
+        document.getElementById('c-lat').value = lat.toFixed(6);
+        document.getElementById('c-lng').value = lng.toFixed(6);
+        coordConvert();
+      }
+    },
+    (err) => {
+      const msgs = { 1: '拒绝定位权限', 2: '无法获取位置', 3: '定位超时' };
+      alert(msgs[err.code] || '定位失败');
+    },
+    { enableHighAccuracy: true, timeout: 8000 },
+  );
+}
+document.getElementById('m-findme').addEventListener('click', () => findMe('map'));
+document.getElementById('c-findme').addEventListener('click', () => findMe('coord'));
+
+// ════════════════════════════════════════════
+// 定位模态框
+// ════════════════════════════════════════════
+var _locMode = 'dd';
+
+function _renderFields() {
+  var mode = document.getElementById('loc-mode').value;
+  _locMode = mode;
+  var html = '';
+  if (mode === 'dd') {
+    html = '<div class="loc-row">' +
+      '<div class="lf"><label>纬度</label><input id="l-dd-lat" value="39.9042" step="any"></div>' +
+      '<div class="lf"><label>经度</label><input id="l-dd-lng" value="116.4074" step="any"></div>' +
+    '</div>';
+  } else if (mode === 'dms') {
+    html = '<div class="loc-row">' +
+      '<div class="lf"><label>纬度 度</label><input id="l-dms-latd" value="39"></div>' +
+      '<div class="lf"><label>分</label><input id="l-dms-latm" value="54"></div>' +
+      '<div class="lf"><label>秒</label><input id="l-dms-lats" value="15.12" step="any"></div>' +
+      '<div class="lf"><label>半球</label><select id="l-dms-lath"><option value="N">N</option><option value="S">S</option></select></div>' +
+    '</div><div class="loc-row">' +
+      '<div class="lf"><label>经度 度</label><input id="l-dms-lngd" value="116"></div>' +
+      '<div class="lf"><label>分</label><input id="l-dms-lngm" value="23"></div>' +
+      '<div class="lf"><label>秒</label><input id="l-dms-lngs" value="51.00" step="any"></div>' +
+      '<div class="lf"><label>半球</label><select id="l-dms-lngh"><option value="E">E</option><option value="W">W</option></select></div>' +
+    '</div>';
+  } else if (mode === 'utm') {
+    html = '<div class="loc-row">' +
+      '<div class="lf"><label>Zone</label><input id="l-utm-z" value="50"></div>' +
+      '<div class="lf"><label>东向 (mE)</label><input id="l-utm-e" value="449886"></div>' +
+      '<div class="lf"><label>北向 (mN)</label><input id="l-utm-n" value="4416715"></div>' +
+      '<div class="lf"><label>半球</label><select id="l-utm-h"><option value="N">N</option><option value="S">S</option></select></div>' +
+    '</div>';
+  } else if (mode === 'mgrs') {
+    html = '<div class="loc-row"><div class="lf" style="flex:1"><label>MGRS 坐标</label><input id="l-mgrs" class="lg" value="50S LU 44988 16715" style="width:100%;font-family:monospace"></div></div>' +
+      '<div style="font-size:10px;color:#555;margin-top:-4px">格式: 区号 + 纬度带 + 100km网格 + 东向 + 北向 (如 50S LU 44988 16715)</div>';
+  } else if (mode === 'olc') {
+    html = '<div class="loc-row"><div class="lf" style="flex:1"><label>Plus Code</label><input id="l-olc" class="lg" value="8PFP5WMM+8" style="width:100%;font-family:monospace"></div></div>' +
+      '<div style="font-size:10px;color:#555;margin-top:-4px">例如 8PFP5WMM+8</div>';
+  }
+  document.getElementById('loc-fields').innerHTML = html;
+}
+
+function _parseFields() {
+  var err = document.getElementById('loc-err');
+  err.style.display = 'none';
+  try {
+    var lat, lng;
+    if (_locMode === 'dd') {
+      lat = +document.getElementById('l-dd-lat').value;
+      lng = +document.getElementById('l-dd-lng').value;
+      if (isNaN(lat) || isNaN(lng)) throw '请输入有效数字';
+    } else if (_locMode === 'dms') {
+      var ld = +document.getElementById('l-dms-latd').value;
+      var lm = +document.getElementById('l-dms-latm').value;
+      var ls = +document.getElementById('l-dms-lats').value;
+      var lh = document.getElementById('l-dms-lath').value;
+      var ngd = +document.getElementById('l-dms-lngd').value;
+      var ngm = +document.getElementById('l-dms-lngm').value;
+      var ngs = +document.getElementById('l-dms-lngs').value;
+      var ngh = document.getElementById('l-dms-lngh').value;
+      if ([ld,lm,ls,ngd,ngm,ngs].some(isNaN)) throw '请输入有效数字';
+      lat = (ld + lm/60 + ls/3600) * (lh === 'S' ? -1 : 1);
+      lng = (ngd + ngm/60 + ngs/3600) * (ngh === 'W' ? -1 : 1);
+    } else if (_locMode === 'utm') {
+      var z = +document.getElementById('l-utm-z').value;
+      var e = +document.getElementById('l-utm-e').value;
+      var n = +document.getElementById('l-utm-n').value;
+      var h = document.getElementById('l-utm-h').value;
+      if ([z,e,n].some(isNaN)) throw '请输入有效数字';
+      var a=6378137,f=1/298.257223563,e2=2*f-f*f, k0=0.9996;
+      var cm=(z-1)*6-180+3, e1=(1-Math.sqrt(1-e2))/(1+Math.sqrt(1-e2));
+      var x=e-500000, y=h==='S'?n-10000000:n, M=y/k0;
+      var mu=M/(a*(1-e2/4-3*e2*e2/64-5*e2*e2*e2/256));
+      var lat1=mu+(3*e1/2-27*e1*e1*e1/32)*Math.sin(2*mu)+(21*e1*e1/16-55*e1*e1*e1*e1/32)*Math.sin(4*mu)+(151*e1*e1*e1/96)*Math.sin(6*mu);
+      var N1=a/Math.sqrt(1-e2*Math.sin(lat1)*Math.sin(lat1)), T1=Math.tan(lat1)*Math.tan(lat1);
+      var C1=e2/(1-e2)*Math.cos(lat1)*Math.cos(lat1), R1=a*(1-e2)/Math.pow(1-e2*Math.sin(lat1)*Math.sin(lat1),1.5);
+      var D=x/(N1*k0);
+      lat=lat1-N1*Math.tan(lat1)/R1*(D*D/2-(5+3*T1+10*C1-4*C1*C1-9*e2)*D*D*D*D/24+(61+90*T1+298*C1+45*T1*T1-252*e2-3*C1*C1)*D*D*D*D*D*D/720);
+      lng=(D-(1+2*T1+C1)*D*D*D/6+(5-2*C1+28*T1-3*C1*C1+8*e2+24*T1*T1)*D*D*D*D*D/120)/Math.cos(lat1)+cm*Math.PI/180;
+      lat=lat*180/Math.PI; lng=lng*180/Math.PI;
+    } else if (_locMode === 'mgrs') {
+      var s=document.getElementById('l-mgrs').value.trim().toUpperCase().replace(/\s+/g,' ');
+      var m=s.match(/^(\d{1,2})([CDEFGHJKLMNPQRSTUVWX])\s*([ABCDEFGHJKLMNPQRSTUV])([ABCDEFGHJKLMNPQRSTUV])\s+(\d{1,5})\s+(\d{1,5})$/);
+      if (!m) throw 'MGRS 格式错误，示例: 50S LU 44988 16715';
+      var z=+m[1], band=m[2], colL=m[3], rowL=m[4], e100=+m[5], n100=+m[6];
+      var letters='ABCDEFGHJKLMNPQRSTUV';
+      var ci=letters.indexOf(colL), ri=letters.indexOf(rowL);
+      if (z%2===0){ci=(ci-5+20)%20;ri=(ri-5+20)%20;}
+      var easting=ci*100000+e100, northing=ri*100000+n100;
+      if (band<'N') northing+=0;
+      // same UTM→lat/lng as above
+      var a=6378137,f=1/298.257223563,e2=2*f-f*f, k0=0.9996;
+      var cm=(z-1)*6-180+3, e1=(1-Math.sqrt(1-e2))/(1+Math.sqrt(1-e2));
+      var x=easting-500000, y=northing, M=y/k0;
+      var mu=M/(a*(1-e2/4-3*e2*e2/64-5*e2*e2*e2/256));
+      var lat1=mu+(3*e1/2-27*e1*e1*e1/32)*Math.sin(2*mu)+(21*e1*e1/16-55*e1*e1*e1*e1/32)*Math.sin(4*mu)+(151*e1*e1*e1/96)*Math.sin(6*mu);
+      var N1=a/Math.sqrt(1-e2*Math.sin(lat1)*Math.sin(lat1)), T1=Math.tan(lat1)*Math.tan(lat1);
+      var C1=e2/(1-e2)*Math.cos(lat1)*Math.cos(lat1), R1=a*(1-e2)/Math.pow(1-e2*Math.sin(lat1)*Math.sin(lat1),1.5);
+      var D=x/(N1*k0);
+      lat=lat1-N1*Math.tan(lat1)/R1*(D*D/2-(5+3*T1+10*C1-4*C1*C1-9*e2)*D*D*D*D/24+(61+90*T1+298*C1+45*T1*T1-252*e2-3*C1*C1)*D*D*D*D*D*D/720);
+      lng=(D-(1+2*T1+C1)*D*D*D/6+(5-2*C1+28*T1-3*C1*C1+8*e2+24*T1*T1)*D*D*D*D*D/120)/Math.cos(lat1)+cm*Math.PI/180;
+      lat=lat*180/Math.PI; lng=lng*180/Math.PI;
+    } else if (_locMode === 'olc') {
+      var code=document.getElementById('l-olc').value.trim().toUpperCase().replace(/[+ ]/g,'');
+      var alpha='23456789CFGHJMPQRVWX';
+      if (code.length<2) throw 'Plus Code 太短';
+      var lR=[-90,90], nR=[-180,180];
+      for (var i=0;i<code.length;i++) {
+        var idx=alpha.indexOf(code[i]);
+        if (idx<0) throw '无效字符: '+code[i];
+        if (i%2===0){var iv=(nR[1]-nR[0])/20;nR=[nR[0]+idx*iv,nR[0]+(idx+1)*iv];}
+        else{var iv=(lR[1]-lR[0])/20;lR=[lR[0]+idx*iv,lR[0]+(idx+1)*iv];}
+      }
+      lat=(lR[0]+lR[1])/2; lng=(nR[0]+nR[1])/2;
+    }
+    if (lat===undefined||lng===undefined||isNaN(lat)||isNaN(lng)) throw '无法解析坐标';
+    return {lat,lng};
+  } catch(e) {
+    err.textContent = typeof e === 'string' ? e : '输入格式有误';
+    err.style.display = 'block';
+    return null;
+  }
+}
+
+window._openModal = function() {
+  document.getElementById('loc-modal').style.display = 'flex';
+  _renderFields();
+  document.getElementById('loc-mode').addEventListener('change', _renderFields);
+};
+
+window._closeModal = function() {
+  document.getElementById('loc-modal').style.display = 'none';
+};
+
+window._doLocate = function() {
+  var p = _parseFields();
+  if (!p) return;
+  var c = centerFor(mapSources[curKey].coordSystem, p.lat, p.lng);
+  map.setView(c, map.getZoom());
+  document.getElementById('m-lat').value = p.lat.toFixed(6);
+  document.getElementById('m-lng').value = p.lng.toFixed(6);
+  showPopup(p.lat, p.lng);
+  _closeModal();
+};
+
+// 点遮罩关闭
+document.getElementById('loc-modal').addEventListener('click', function(e) {
+  if (e.target === this) _closeModal();
+});
+
+// 恢复地图源选择器
+document.getElementById('m-src').value = curKey;
+document.getElementById('m-lat').value = savedLat.toFixed(6);
+document.getElementById('m-lng').value = savedLng.toFixed(6);
+
+// 恢复激活的 Tab
+var savedTab = load('tab', 'map');
+document.querySelectorAll('nav button').forEach(b => {
+  b.classList.toggle('active', b.dataset.tab === savedTab);
+  document.getElementById('tab-' + b.dataset.tab).classList.toggle('active', b.dataset.tab === savedTab);
+});
+
+switchSource(curKey);
+showPopup(savedLat, savedLng);
+
+// ════════════════════════════════════════════
+// TAB 3: 引用方式 — 复制按钮
+// ════════════════════════════════════════════
+document.querySelectorAll('.copy-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const pre = btn.closest('pre');
+    const code = pre.textContent.replace(btn.textContent, '').trim();
+    navigator.clipboard.writeText(code).then(() => {
+      btn.textContent = '已复制';
+      setTimeout(() => { btn.textContent = '复制'; }, 1500);
+    });
+  });
+});
+
+})();
+</script>
+</body>
+</html>

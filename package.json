@@ -1,0 +1,48 @@
+{
+  "name": "meow-tile-kit",
+  "version": "0.1.0",
+  "description": "Multi-source map tile switching library with coordinate system support (WGS-84 / GCJ-02 / BD-09)",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "unpkg": "./dist/index.global.js",
+  "jsdelivr": "./dist/index.global.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "npm run build:types && npm run build:bundle",
+    "build:types": "tsc",
+    "build:bundle": "tsup src/index.ts --format esm,iife --dts --clean --outDir dist --global-name MeowTileKit",
+    "dev": "tsc --watch",
+    "start": "node server.js",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "map",
+    "tile",
+    "openstreetmap",
+    "amap",
+    "baidu",
+    "coordinate",
+    "gcj02",
+    "wgs84"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TileKit 地图源切换演示</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #0f0f13;
+  color: #e0e0e0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+#header {
+  background: #1a1a24;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #2a2a3a;
+  z-index: 1000;
+}
+#header h1 { font-size: 16px; font-weight: 600; color: #fff; margin-right: 8px; }
+#header label { font-size: 13px; color: #888; }
+#header select, #header input {
+  background: #252533;
+  color: #e0e0e0;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  outline: none;
+}
+#header select:focus, #header input:focus { border-color: #4a9eff; }
+#header input { width: 80px; }
+#header input[name="lng"] { width: 90px; }
+#header button {
+  background: #4a9eff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+#header button:hover { background: #3a8eef; }
+#header .sep { color: #444; font-size: 20px; padding: 0 4px; }
+#map { flex: 1; }
+#info {
+  background: #1a1a24;
+  padding: 10px 20px;
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-family: "SF Mono", Menlo, monospace;
+  border-top: 1px solid #2a2a3a;
+}
+#info .badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.badge-wgs84  { background: #1a6b3c; color: #6fcf97; }
+.badge-gcj02  { background: #6b3a1a; color: #f0ad4e; }
+.badge-bd09   { background: #4a1a6b; color: #bb86fc; }
+#info .coord { color: #aaa; }
+#info .coord strong { color: #e0e0e0; }
+#marker-tip {
+  background: #1a1a24;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  line-height: 1.6;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  border: 1px solid #2a2a3a;
+  max-width: 260px;
+}
+#marker-tip .row { display: flex; justify-content: space-between; gap: 12px; }
+#marker-tip .label { color: #888; }
+#marker-tip .val { color: #e0e0e0; font-family: "SF Mono", Menlo, monospace; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>🗺 MeowTileKit</h1>
+  <label>地图源</label>
+  <select id="src-select">
+    <option value="osm">OpenStreetMap (WGS-84)</option>
+    <option value="amap">高德地图 (GCJ-02)</option>
+    <option value="google">Google Maps (WGS-84)</option>
+    <option value="tencent">腾讯地图 (GCJ-02)</option>
+      <option value="google-china">Google 中国 (GCJ-02)</option>
+    </select>
+  <span class="sep">|</span>
+  <label>纬度</label>
+  <input type="number" id="lat-in" value="39.9042" step="any">
+  <label>经度</label>
+  <input type="number" id="lng-in" value="116.4074" step="any">
+  <button id="go-btn">定位</button>
+</div>
+
+<div id="map"></div>
+
+<div id="info">
+  <span class="badge badge-wgs84">WGS-84</span>
+  <span class="coord">纬度 <strong id="wgs-lat">—</strong> 经度 <strong id="wgs-lng">—</strong></span>
+  <span class="badge badge-gcj02">GCJ-02</span>
+  <span class="coord">纬度 <strong id="gcj-lat">—</strong> 经度 <strong id="gcj-lng">—</strong></span>
+  <span class="badge badge-bd09">BD-09</span>
+  <span class="coord">纬度 <strong id="bd-lat">—</strong> 经度 <strong id="bd-lng">—</strong></span>
+  <span style="color:#555">|</span>
+  <span id="china-tag" style="color:#888">检测中…</span>
+  <span style="color:#555">|</span>
+  <span class="coord">瓦片 <strong id="tile-info">—</strong></span>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module">
+import {
+  OSMSource, AMapSource, GoogleSource, TencentSource,
+  wgs84ToGcj02, gcj02ToBd09, wgs84ToBd09,
+  convertCoord, isInChina,
+  latLngToTile,
+} from '../src/index.ts';
+
+// ── registry ──────────────────────────────────────────────
+const sources = {
+  osm:           new OSMSource(),
+  amap:          new AMapSource(),
+  google:        new GoogleSource(),
+  'google-china': new GoogleSource({ china: true }),
+  tencent:       new TencentSource(),
+
+};
+
+// ── helpers ───────────────────────────────────────────────
+function coordToMapCenter(coordSys, lat, lng) {
+  if (coordSys === 'wgs84') return [lat, lng];
+  if (coordSys === 'gcj02') {
+    const c = wgs84ToGcj02(lat, lng);
+    return [c.lat, c.lng];
+  }
+  if (coordSys === 'bd09') {
+    const c = wgs84ToBd09(lat, lng);
+    return [c.lat, c.lng];
+  }
+  return [lat, lng];
+}
+
+function makeLayer(source) {
+  const layer = L.tileLayer('', {
+    tileSize: source.tileSize,
+    maxZoom: source.maxZoom,
+    minZoom: source.minZoom,
+    attribution: source.attribution,
+  });
+  layer.getTileUrl = (coords) => source.getTileUrl(coords);
+  return layer;
+}
+
+// ── map ───────────────────────────────────────────────────
+const map = L.map('map', {
+  center: [39.9042, 116.4074],
+  zoom: 12,
+  zoomControl: true,
+});
+
+let currentLayer = null;
+let currentSourceKey = 'osm';
+
+let marker = L.marker([39.9042, 116.4074], { draggable: true }).addTo(map);
+let offsetMarker = null;
+let offsetLine = null;
+
+marker.bindTooltip(() => buildTooltipContent(), { permanent: false });
+
+marker.on('dragend', () => {
+  const pos = marker.getLatLng();
+  document.getElementById('lat-in').value = pos.lat.toFixed(6);
+  document.getElementById('lng-in').value = pos.lng.toFixed(6);
+  updateInfo(pos.lat, pos.lng);
+  updateOffsetVisual(pos.lat, pos.lng);
+});
+
+// ── source switching ──────────────────────────────────────
+function switchSource(key) {
+  if (currentLayer) map.removeLayer(currentLayer);
+  currentSourceKey = key;
+  const src = sources[key];
+  currentLayer = makeLayer(src);
+  map.addLayer(currentLayer);
+
+  const pos = marker.getLatLng();
+  const center = coordToMapCenter(src.coordSystem, pos.lat, pos.lng);
+  map.setView([center[0], center[1]], map.getZoom());
+
+  updateInfo(pos.lat, pos.lng);
+  updateOffsetVisual(pos.lat, pos.lng);
+}
+
+document.getElementById('src-select').addEventListener('change', (e) => {
+  switchSource(e.target.value);
+});
+
+// ── go button ─────────────────────────────────────────────
+document.getElementById('go-btn').addEventListener('click', () => {
+  const lat = parseFloat(document.getElementById('lat-in').value);
+  const lng = parseFloat(document.getElementById('lng-in').value);
+  if (isNaN(lat) || isNaN(lng)) return;
+
+  const src = sources[currentSourceKey];
+  const center = coordToMapCenter(src.coordSystem, lat, lng);
+  marker.setLatLng([lat, lng]);
+  map.setView([center[0], center[1]], map.getZoom());
+  updateInfo(lat, lng);
+  updateOffsetVisual(lat, lng);
+});
+
+// ── coord info ────────────────────────────────────────────
+function updateInfo(lat, lng) {
+  const gcj = wgs84ToGcj02(lat, lng);
+  const bd = wgs84ToBd09(lat, lng);
+  const inChina = isInChina(lat, lng);
+
+  document.getElementById('wgs-lat').textContent = lat.toFixed(6);
+  document.getElementById('wgs-lng').textContent = lng.toFixed(6);
+  document.getElementById('gcj-lat').textContent = gcj.lat.toFixed(6);
+  document.getElementById('gcj-lng').textContent = gcj.lng.toFixed(6);
+  document.getElementById('bd-lat').textContent = bd.lat.toFixed(6);
+  document.getElementById('bd-lng').textContent = bd.lng.toFixed(6);
+
+  document.getElementById('china-tag').textContent =
+    inChina ? '📍 中国境内 (有偏移)' : '🌍 境外 (无偏移)';
+  document.getElementById('china-tag').style.color = inChina ? '#f0ad4e' : '#6fcf97';
+
+  const tile = latLngToTile(lat, lng, map.getZoom());
+  document.getElementById('tile-info').textContent =
+    `${tile.z}/${tile.x}/${tile.y}`;
+}
+
+// ── offset visual ─────────────────────────────────────────
+function updateOffsetVisual(lat, lng) {
+  if (offsetMarker) map.removeLayer(offsetMarker);
+  if (offsetLine) map.removeLayer(offsetLine);
+  offsetMarker = null;
+  offsetLine = null;
+
+  const src = sources[currentSourceKey];
+  if (src.coordSystem === 'wgs84') return;
+
+  const wrong = src.coordSystem === 'gcj02'
+    ? { lat, lng }
+    : wgs84ToGcj02(lat, lng);
+
+  offsetMarker = L.circleMarker([wrong.lat, wrong.lng], {
+    radius: 8, color: '#ff4444', fillColor: '#ff444488',
+    fillOpacity: 0.4, weight: 2,
+  }).addTo(map);
+  offsetMarker.bindTooltip(`如果误用 WGS-84 坐标在此源上<br>真实位置会偏移至此`, { direction: 'top' });
+
+  offsetLine = L.polyline([[lat, lng], [wrong.lat, wrong.lng]], {
+    color: '#ff4444', weight: 2, dashArray: '4,6', opacity: 0.6,
+  }).addTo(map);
+}
+
+// ── tooltip for marker ────────────────────────────────────
+function buildTooltipContent() {
+  const pos = marker.getLatLng();
+  const gcj = wgs84ToGcj02(pos.lat, pos.lng);
+  const tile = latLngToTile(pos.lat, pos.lng, map.getZoom());
+  const src = sources[currentSourceKey];
+  return `
+    <div id="marker-tip">
+      <div class="row"><span class="label">WGS-84</span><span class="val">${pos.lat.toFixed(5)}, ${pos.lng.toFixed(5)}</span></div>
+      <div class="row"><span class="label">GCJ-02</span><span class="val">${gcj.lat.toFixed(5)}, ${gcj.lng.toFixed(5)}</span></div>
+      <div class="row"><span class="label">地图源</span><span class="val">${src.name} (${src.coordSystem})</span></div>
+      <div class="row"><span class="label">瓦片</span><span class="val">${tile.z}/${tile.x}/${tile.y}</span></div>
+    </div>
+  `;
+}
+
+marker.on('popupopen', () => {
+  const popup = marker.getPopup();
+  if (popup) popup.setContent(buildTooltipContent());
+});
+
+// ── init ──────────────────────────────────────────────────
+switchSource('osm');
+updateInfo(39.9042, 116.4074);
+updateOffsetVisual(39.9042, 116.4074);
+
+map.on('moveend', () => {
+  const pos = marker.getLatLng();
+  updateInfo(pos.lat, pos.lng);
+});
+</script>
+</body>
+</html>

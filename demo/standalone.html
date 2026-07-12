@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MeowTileKit · 地图源切换 (独立版)</title>
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:#0f0f13; color:#e0e0e0; height:100vh; display:flex; flex-direction:column; }
+#bar {
+  background:#1a1a24; padding:10px 16px; display:flex; align-items:center;
+  gap:10px; flex-wrap:wrap; border-bottom:1px solid #2a2a3a; z-index:1000;
+}
+#bar h1 { font-size:15px; font-weight:600; color:#fff; margin-right:6px; }
+#bar label { font-size:12px; color:#888; }
+#bar select, #bar input {
+  background:#252533; color:#e0e0e0; border:1px solid #333;
+  border-radius:5px; padding:4px 8px; font-size:12px; outline:none;
+}
+#bar input { width:70px; }
+#bar button {
+  background:#4a9eff; color:#fff; border:none; border-radius:5px;
+  padding:5px 14px; font-size:12px; cursor:pointer;
+}
+#map { flex:1; }
+#info {
+  background:#1a1a24; padding:8px 16px; display:flex; gap:16px;
+  flex-wrap:wrap; font-size:12px; font-family:"SF Mono",Menlo,monospace;
+  border-top:1px solid #2a2a3a; color:#aaa;
+}
+#info strong { color:#e0e0e0; }
+.bdg { display:inline-block; padding:0 6px; border-radius:3px; font-size:10px; font-weight:600; }
+.bdg-w { background:#1a6b3c; color:#6fcf97; }
+.bdg-g { background:#6b3a1a; color:#f0ad4e; }
+.bdg-b { background:#4a1a6b; color:#bb86fc; }
+</style>
+</head>
+<body>
+
+<div id="bar">
+  <h1>🗺 MeowTileKit</h1>
+  <label>地图源</label>
+  <select id="srcSel">
+    <option value="osm">OpenStreetMap</option>
+    <option value="amap">高德地图</option>
+    <option value="google">Google Maps</option>
+    <option value="tencent">腾讯地图</option>
+  </select>
+  <label>纬度</label><input id="latIn" value="39.9042">
+  <label>经度</label><input id="lngIn" value="116.4074">
+  <button id="goBtn">定位</button>
+</div>
+
+<div id="map"></div>
+
+<div id="info">
+  <span class="bdg bdg-w">WGS-84</span>
+  <span>纬度 <strong id="wLat">—</strong> 经度 <strong id="wLng">—</strong></span>
+  <span class="bdg bdg-g">GCJ-02</span>
+  <span>纬度 <strong id="gLat">—</strong> 经度 <strong id="gLng">—</strong></span>
+  <span class="bdg bdg-b">BD-09</span>
+  <span>纬度 <strong id="bLat">—</strong> 经度 <strong id="bLng">—</strong></span>
+  <span id="chinaTag" style="color:#888">—</span>
+  <span>瓦片 <strong id="tileInfo">—</strong></span>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- TileKit IIFE bundle — 直接加载，无需构建 -->
+<script src="../dist/index.global.js"></script>
+<script>
+(function() {
+  const tk = window.MeowTileKit;
+  if (!tk) { document.body.innerHTML = '❌ MeowTileKit 加载失败'; return; }
+
+  const { OSMSource, AMapSource, GoogleSource, TencentSource,
+          wgs84ToGcj02, wgs84ToBd09, isInChina, latLngToTile } = tk;
+
+  const sources = {
+    osm:     new OSMSource(),
+    amap:    new AMapSource(),
+    google:  new GoogleSource(),
+    tencent: new TencentSource(),
+
+  };
+
+  function srcMapCenter(coordSys, lat, lng) {
+    if (coordSys === 'gcj02') { const c = wgs84ToGcj02(lat, lng); return [c.lat, c.lng]; }
+    if (coordSys === 'bd09')  { const c = wgs84ToBd09(lat, lng); return [c.lat, c.lng]; }
+    return [lat, lng];
+  }
+
+  function makeLayer(src) {
+    const layer = L.tileLayer('', {
+      tileSize: src.tileSize, maxZoom: src.maxZoom,
+      minZoom: src.minZoom, attribution: src.attribution,
+    });
+    layer.getTileUrl = (c) => src.getTileUrl(c);
+    return layer;
+  }
+
+  var map = L.map('map', { center: [39.9042, 116.4074], zoom: 12 });
+  var curKey = 'osm', curLayer = null;
+  var marker = L.marker([39.9042, 116.4074], { draggable: true }).addTo(map);
+
+  function switchSource(key) {
+    if (curLayer) map.removeLayer(curLayer);
+    curKey = key;
+    curLayer = makeLayer(sources[key]);
+    map.addLayer(curLayer);
+    var pos = marker.getLatLng();
+    var c = srcMapCenter(sources[key].coordSystem, pos.lat, pos.lng);
+    map.setView(c, map.getZoom());
+    updateInfo(pos.lat, pos.lng);
+  }
+
+  function updateInfo(lat, lng) {
+    var gcj = wgs84ToGcj02(lat, lng);
+    var bd = wgs84ToBd09(lat, lng);
+    var china = isInChina(lat, lng);
+    var tile = latLngToTile(lat, lng, map.getZoom());
+
+    document.getElementById('wLat').textContent = lat.toFixed(5);
+    document.getElementById('wLng').textContent = lng.toFixed(5);
+    document.getElementById('gLat').textContent = gcj.lat.toFixed(5);
+    document.getElementById('gLng').textContent = gcj.lng.toFixed(5);
+    document.getElementById('bLat').textContent = bd.lat.toFixed(5);
+    document.getElementById('bLng').textContent = bd.lng.toFixed(5);
+    document.getElementById('tileInfo').textContent = tile.z + '/' + tile.x + '/' + tile.y;
+    var ct = document.getElementById('chinaTag');
+    if (china) { ct.innerHTML = '📍 中国境内'; ct.style.color = '#f0ad4e'; }
+    else       { ct.innerHTML = '🌍 境外'; ct.style.color = '#6fcf97'; }
+  }
+
+  // events
+  document.getElementById('srcSel').onchange = function(e) { switchSource(e.target.value); };
+  document.getElementById('goBtn').onclick = function() {
+    var lat = +document.getElementById('latIn').value;
+    var lng = +document.getElementById('lngIn').value;
+    if (isNaN(lat) || isNaN(lng)) return;
+    marker.setLatLng([lat, lng]);
+    var c = srcMapCenter(sources[curKey].coordSystem, lat, lng);
+    map.setView(c, map.getZoom());
+    updateInfo(lat, lng);
+  };
+  marker.on('dragend', function() {
+    var p = marker.getLatLng();
+    document.getElementById('latIn').value = p.lat.toFixed(6);
+    document.getElementById('lngIn').value = p.lng.toFixed(6);
+    updateInfo(p.lat, p.lng);
+  });
+  map.on('moveend', function() {
+    var p = marker.getLatLng();
+    updateInfo(p.lat, p.lng);
+  });
+
+  switchSource('osm');
+  updateInfo(39.9042, 116.4074);
+})();
+</script>
+</body>
+</html>
