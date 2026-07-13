@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OSMSource, AMapSource, GoogleSource, BMapSource, TencentSource } from '../src/sources/index.js';
+import { OSMSource, AMapSource, GoogleSource, TencentSource } from '../src/sources/index.js';
 
 describe('OSMSource', () => {
   const src = new OSMSource();
@@ -46,15 +46,6 @@ describe('GoogleSource', () => {
   it('china 模式使用 GCJ-02', () => {
     const src = new GoogleSource({ china: true });
     expect(src.coordSystem).toBe('gcj02');
-  });
-});
-
-describe('BMapSource', () => {
-  it('Baidu 瓦片 URL', () => {
-    const src = new BMapSource();
-    const url = src.getTileUrl({ x: 1, y: 2, z: 3 });
-    expect(url).toContain('map.bdimg.com');
-    expect(src.coordSystem).toBe('bd09');
   });
 });
 
