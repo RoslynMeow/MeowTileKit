@@ -108,19 +108,7 @@ header button.ghost:hover { background: #1c1c2e; color: #bbb; box-shadow: none; 
   <span class="ver">v0.1.0</span>
   <span class="sep">·</span>
   <label>地图源</label>
-  <select id="src">
-    <optgroup label="海外（WGS-84）">
-      <option value="osm">OpenStreetMap</option>
-      <option value="google">Google Maps</option>
-      <option value="carto">CartoDB</option>
-      <option value="esri">Esri</option>
-      <option value="opentopo">OpenTopoMap</option>
-    </optgroup>
-    <optgroup label="国内（GCJ-02）">
-      <option value="amap" selected>高德地图</option>
-      <option value="tencent">腾讯地图</option>
-    </optgroup>
-  </select>
+  <select id="src"></select>
   <span class="sep">·</span>
   <label>纬度</label><input id="lat-in" value="39.9042">
   <label>经度</label><input id="lng-in" value="116.4074">
@@ -142,7 +130,24 @@ header button.ghost:hover { background: #1c1c2e; color: #bbb; box-shadow: none; 
 const tk = window.MeowTileKit;
 if (!tk) { document.body.innerHTML = 'MeowTileKit 加载失败'; return; }
 
-const { createMap, createTileSource, wgs84ToGcj02, wgs84ToBd09, isInChina, latLngToTile } = tk;
+const { createMap, createTileSource, wgs84ToGcj02, wgs84ToBd09, isInChina, latLngToTile, presets } = tk;
+
+// ── build preset selector ──
+const sel = document.getElementById('src');
+const groups = {};
+presets.forEach(p => (groups[p.group] ??= []).push(p));
+Object.entries(groups).forEach(([g, items]) => {
+  const opt = document.createElement('optgroup');
+  opt.label = g;
+  items.forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = p.label;
+    if (p.id === 'amap') o.selected = true;
+    opt.appendChild(o);
+  });
+  sel.appendChild(opt);
+});
 
 // ── init map ──
 let curSrc = null;
@@ -167,7 +172,7 @@ function switchSource(key) {
   map.setView(c, map.getZoom());
   updateBar(p.lat, p.lng);
 }
-document.getElementById('src').addEventListener('change', e => switchSource(e.target.value));
+sel.addEventListener('change', e => switchSource(e.target.value));
 
 // ── popup ──
 function popupHTML(lat, lng) {

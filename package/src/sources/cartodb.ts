@@ -1,10 +1,11 @@
 import type { TileSource, TileCoords, TileSourceOptions } from '../types.js';
 
-export type CartoStyle = 'light' | 'dark';
+export type CartoStyle = 'light' | 'dark' | 'voyager';
 
 const STYLE_MAP: Record<CartoStyle, string> = {
   light: 'light_all',
   dark: 'dark_all',
+  voyager: 'rastertiles/voyager',
 };
 
 export interface CartoOptions extends TileSourceOptions {

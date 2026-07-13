@@ -1,17 +1,20 @@
 import type { TileSource, TileSourceOptions } from './types.js';
-import { OSMSource, AMapSource, GoogleSource, TencentSource, CartoSource, EsriSource, OpenTopoSource } from './sources/index.js';
+import { OSMSource, AMapSource, GoogleSource, TencentSource, CartoSource, EsriSource, OpenTopoSource, WikimediaSource } from './sources/index.js';
 import { wgs84ToGcj02, gcj02ToWgs84, wgs84ToBd09, bd09ToWgs84, gcj02ToBd09, bd09ToGcj02 } from './coord.js';
+import { getPreset } from './presets.js';
 
 export type SourceType = 'osm' | 'amap' | 'tencent' | 'google' | 'carto' | 'esri' | 'opentopo';
 
 export interface CreateMapOptions {
-  source: SourceType;
+  /** preset ID、SourceType、或自定义 TileSource 实例 */
+  source: string | TileSource;
   center?: [number, number];
   zoom?: number;
   sourceOptions?: TileSourceOptions & Record<string, unknown>;
   /** 限制可视区域，WGS-84 坐标 [[south, west], [north, east]] */
   maxBounds?: [[number, number], [number, number]];
-
+  /** 传入 Leaflet 实例（ESM 使用），不传则自动取 window.L */
+  leaflet?: any;
 }
 
 let L: any = null;
@@ -24,17 +27,25 @@ function getLeaflet(): any {
   return L;
 }
 
-export function createTileSource(type: SourceType, options?: TileSourceOptions & Record<string, unknown>): TileSource {
-  switch (type) {
-    case 'osm': return new OSMSource(options);
-    case 'amap': return new AMapSource(options as any);
-    case 'tencent': return new TencentSource(options as any);
-    case 'google': return new GoogleSource(options as any);
-    case 'carto': return new CartoSource(options as any);
-    case 'esri': return new EsriSource(options as any);
-    case 'opentopo': return new OpenTopoSource(options);
-    default: throw new Error(`Unknown source type: ${type}`);
+export function resolveSource(source: string | TileSource, sourceOptions?: TileSourceOptions & Record<string, unknown>): TileSource {
+  if (typeof source !== 'string') return source;
+  const preset = getPreset(source);
+  if (preset) return preset.create();
+  switch (source) {
+    case 'osm': return new OSMSource(sourceOptions);
+    case 'amap': return new AMapSource(sourceOptions as any);
+    case 'tencent': return new TencentSource(sourceOptions as any);
+    case 'google': return new GoogleSource(sourceOptions as any);
+    case 'carto': return new CartoSource(sourceOptions as any);
+    case 'esri': return new EsriSource(sourceOptions as any);
+    case 'opentopo': return new OpenTopoSource(sourceOptions);
+    case 'wikimedia': return new WikimediaSource();
+    default: throw new Error(`Unknown source: ${source}`);
   }
+}
+
+export function createTileSource(type: string, options?: TileSourceOptions & Record<string, unknown>): TileSource {
+  return resolveSource(type, options);
 }
 
 export interface MeowMap {
@@ -45,8 +56,8 @@ export interface MeowMap {
 }
 
 export function createMap(container: string | HTMLElement, options: CreateMapOptions): MeowMap {
-  const leaflet = getLeaflet();
-  const source = createTileSource(options.source, options.sourceOptions);
+  const leaflet = options.leaflet ?? getLeaflet();
+  const source = resolveSource(options.source, options.sourceOptions);
   const [clat, clng] = options.center ?? [39.9042, 116.4074];
   const zoom = options.zoom ?? 12;
 

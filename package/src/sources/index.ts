@@ -18,3 +18,5 @@ export type { EsriOptions, EsriStyle } from './esri.js';
 
 export { OpenTopoSource } from './opentopo.js';
 export type { OpenTopoOptions } from './opentopo.js';
+
+export { WikimediaSource } from './wikimedia.js';
