@@ -40,9 +40,12 @@
     "wgs84"
   ],
   "license": "MIT",
+  "peerDependencies": {
+    "leaflet": "^1.9.0"
+  },
   "devDependencies": {
     "tsup": "^8.5.1",
     "typescript": "^5.4.0",
-    "vitest": "^1.6.0"
+    "vitest": "^4.1.10"
   }
 }
