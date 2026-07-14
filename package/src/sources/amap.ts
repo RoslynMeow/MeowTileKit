@@ -36,6 +36,7 @@ export class AMapSource implements TileSource {
   getTileUrl({ x, y, z }: TileCoords): string {
     const sub = [1, 2, 3, 4][(x + y) % 4];
     const styleId = STYLE_MAP[this.style];
-    return `https://webrd0${sub}.is.autonavi.com/appmaptile?lang=${this.lang}&size=1&scale=1&style=${styleId}&x=${x}&y=${y}&z=${z}`;
+    const host = this.style === 'satellite' ? `webst0${sub}` : `webrd0${sub}`;
+    return `https://${host}.is.autonavi.com/appmaptile?lang=${this.lang}&size=1&scale=1&style=${styleId}&x=${x}&y=${y}&z=${z}`;
   }
 }
