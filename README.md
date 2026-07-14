@@ -18,7 +18,14 @@ npm install meow-tile-kit
 ```
 
 ```ts
-import { createMap, createTileSource, wgs84ToGcj02, gcj02ToWgs84 } from 'meow-tile-kit'
+import { createMap, createTileSource, wgs84ToGcj02 } from 'meow-tile-kit'
+
+// 一行创建完整地图
+const { map, source, toLocal } = createMap('map', {
+  source: 'amap',
+  marker: true,
+  drawer: true,
+})
 ```
 
 ## API
@@ -32,12 +39,33 @@ const { map, source, toLocal, toWgs84 } = createMap('map', {
   source: 'amap',          // 见下方预设列表，或传入 TileSource 实例
   center: [39.9, 116.4],   // WGS-84 坐标
   zoom: 12,
+  marker: true,            // 自动添加可拖拽标记
+  drawer: true,            // 右侧抽屉面板显示坐标详情
   maxBounds: [[15,70], [55,140]],  // 可选：限制可视区域
 })
 ```
 
 - `toLocal(lat, lng)` — 将 WGS-84 转为当前图源的坐标系（用于放置标记）
 - `toWgs84(lat, lng)` — 转回 WGS-84
+
+抽屉每个坐标系只显示一种格式，顶部标签栏可切换（度 / 度分 / 度分秒）。
+可通过 `formats` 选项自定义格式列表：
+
+```ts
+import { defaultFormats } from 'meow-tile-kit'
+import type { CoordFormat } from 'meow-tile-kit'
+
+const myFormat: CoordFormat = {
+  key: 'my',
+  label: '自定义',
+  coord(lat, lng) { return `${lat.toFixed(2)}°N, ${lng.toFixed(2)}°E`; },
+}
+
+createMap('map', {
+  source: 'amap',
+  formats: [...defaultFormats, myFormat],
+})
+```
 
 ### `createTileSource(type, options)`
 
