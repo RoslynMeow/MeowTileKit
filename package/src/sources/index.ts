@@ -7,14 +7,16 @@ export type { AMapOptions, AMapStyle } from './amap.js';
 export { GoogleSource } from './google.js';
 export type { GoogleOptions, GoogleStyle } from './google.js';
 
-export { BMapSource } from './bmap.js';
-export type { BMapOptions } from './bmap.js';
-
 export { TencentSource } from './tencent.js';
 export type { TencentOptions } from './tencent.js';
 
-export { TiandituSource } from './tianditu.js';
-export type { TiandituOptions, TiandituStyle } from './tianditu.js';
+export { CartoSource } from './cartodb.js';
+export type { CartoOptions, CartoStyle } from './cartodb.js';
 
-export { MapboxSource } from './mapbox.js';
-export type { MapboxOptions, MapboxStyle } from './mapbox.js';
+export { EsriSource } from './esri.js';
+export type { EsriOptions, EsriStyle } from './esri.js';
+
+export { OpenTopoSource } from './opentopo.js';
+export type { OpenTopoOptions } from './opentopo.js';
+
+export { WikimediaSource } from './wikimedia.js';
