@@ -1,27 +1,47 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MeowTileKit Demo</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<style>
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC",sans-serif;background:#0a0a12;color:#d4d4d8;height:100vh}
-#map{width:100%;height:100%}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MeowTileKit Demo</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    *,
+    *::before,
+    *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
+      background: #0a0a12;
+      color: #d4d4d8;
+      height: 100vh
+    }
+
+    #map {
+      width: 100%;
+      height: 100%
+    }
+  </style>
 </head>
+
 <body>
-<div id="map"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="../package/dist/index.global.js"></script>
-<script>
-(function(){'use strict'
-const { createMap } = window.MeowTileKit
-const app = createMap('map', { source: 'amap' })
-const open = () => document.querySelector('.mkt-drawer')?.classList.contains('open')
-document.getElementById('map').addEventListener('click', () => { if (!open()) window.dispatchEvent(new Event('resize')) })
-})()
-</script>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="../package/dist/index.global.js"></script>
+  <script>
+    (function () {
+      'use strict'
+      const { createMap } = window.MeowTileKit
+      const app = createMap('map', { source: 'amap' })
+      const open = () => document.querySelector('.mkt-drawer')?.classList.contains('open')
+      document.getElementById('map').addEventListener('click', () => { if (!open()) window.dispatchEvent(new Event('resize')) })
+    })()
+  </script>
 </body>
+
 </html>

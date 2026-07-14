@@ -48,7 +48,10 @@ const { map, source, toLocal, toWgs84 } = createMap('map', {
 - `toLocal(lat, lng)` — 将 WGS-84 转为当前图源的坐标系（用于放置标记）
 - `toWgs84(lat, lng)` — 转回 WGS-84
 
-抽屉每个坐标系只显示一种格式，顶部标签栏可切换（度 / 度分 / 度分秒）。
+右键抽屉分三个区域：**坐标**（WGS-84 / GCJ-02 / BD-09、ISO 6709、Geo URI、其他基准折叠）、
+**测量标准**（格式按钮，每行 5 个）、**地图**（图源切换、缩放、瓦片坐标）。
+抽屉宽度自适应内容，最大不超过视口 50%。
+
 可通过 `formats` 选项自定义格式列表：
 
 ```ts
@@ -108,6 +111,79 @@ import { presets } from 'meow-tile-kit'
 | `tencent` | 腾讯地图 | GCJ-02 |
 | `tencent-sat` | 腾讯卫星图 | GCJ-02 |
 | `tencent-road` | 腾讯路网图 | GCJ-02 |
+
+### 坐标编码格式
+
+内置 13 种坐标编码格式，全部作为 `CoordFormat` 实现，可通过 `formats` 选项选择：
+
+| 格式 | 示例 (北京) | 导出名 |
+|---|---|---|
+| `°` | `39.904200°, 116.407400°` | — |
+| `° '` | `39° 54.2520', 116° 24.4440'` | — |
+| `° ' "` | `39° 54' 15.120", 116° 24' 26.640"` | — |
+| Geohash | `wx4g0bm` | `geohash` |
+| Geohash-36 | `wk311w` | `geohash36f` |
+| GEOREF | `NKCL7922` | `georef` |
+| UTM | `50N 449345 4417292` | `utm` |
+| MGRS | `50N PE 49345 17292` | `mgrs` |
+| C-squares | `1:30:43:00:34:50` | `csquares` |
+| IMW | `N-K-50` | `imw` |
+| Marsden | `N12-20 (9°×6°)` | `marsden` |
+| QDGC | `N39E116_C` | `qdgc` |
+| WMO | `N04-30 (9°×6°)` | `wmo` |
+| NAC | `4F5R 6G7H` | `nac` |
+| OLC | `8P9C3W6X+6X` | `olc` |
+| Mapcode | `B2S8.4X5F` | `mapcode` |
+
+```ts
+import { geohash, utm, mgrs } from 'meow-tile-kit'
+import type { CoordFormat } from 'meow-tile-kit'
+
+createMap('map', {
+  source: 'amap',
+  formats: [geohash, utm], // 只显示这两种
+})
+```
+
+### 坐标基准转换
+
+基于 Helmert 7 参数变换，将 WGS-84 坐标转换到其他大地基准：
+
+```ts
+import { wgs84ToNad83, wgs84ToOsgb36, wgs84ToEtrs89 } from 'meow-tile-kit'
+
+const pt = wgs84ToNad83(39.9042, 116.4074)
+// { lat: 39.9042xx, lng: 116.4074xx }  (NAD 83 ≈ WGS 84)
+```
+
+| 函数 | 基准 | 说明 |
+|---|---|---|
+| `wgs84ToNad83()` | NAD 83 | 北美（≈WGS 84） |
+| `wgs84ToEtrs89()` | ETRS89 | 欧洲（≈WGS 84） |
+| `wgs84ToOsgb36()` | OSGB36 | 英国 |
+| `wgs84ToEd50()` | ED50 | 欧洲历史 |
+| `wgs84ToSad69()` | SAD69 | 南美 |
+| `wgs84ToGrs80()` | GRS 80 | 参考椭球 |
+
+格式标准：
+
+```ts
+import { iso6709, geoUri } from 'meow-tile-kit'
+
+iso6709(39.9042, 116.4074) // "+39.904200+116.407400/"
+geoUri(39.9042, 116.4074)   // "geo:39.904200,116.407400"
+```
+
+### 位置持久化
+
+`createMap` 自动将最后点击/拖拽的位置保存到 `localStorage`（key: `mkt-pos`）。
+下次打开页面自动恢复上次位置。若既无保存位置也无传入 `center`，则尝试浏览器定位（Geolocation API），
+定位失败时默认北京。
+
+```ts
+// 强制不走持久化
+createMap('map', { center: [39.9, 116.4] }) // 传入 center 则跳过
+```
 
 ### 自定义图源
 

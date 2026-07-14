@@ -28,7 +28,7 @@ export class TencentSource implements TileSource {
     const ty = Math.pow(2, z) - 1 - y;
 
     if (this.style === 'satellite') {
-      return `https://p${sub}.map.gtimg.com/sateTiles/${z}/${Math.floor(x / 16)}/${Math.floor(ty / 16)}/${x}x${ty}.jpg`;
+      return `https://p${sub}.map.gtimg.com/sateTiles/${z}/${Math.floor(x / 16)}/${Math.floor(ty / 16)}/${x}_${ty}.jpg`;
     }
 
     return `https://rt${sub}.map.gtimg.com/tile?z=${z}&x=${x}&y=${ty}&type=vector&styleid=1`;

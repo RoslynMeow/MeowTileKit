@@ -8,3 +8,5 @@ export { presets, getPreset, getPresetsByGroup } from './presets.js';
 export { defaultFormats } from './format.js';
 export type { CoordFormat } from './format.js';
 export type { Preset } from './presets.js';
+export * from './encodings.js';
+export * from './datums.js';

@@ -8,7 +8,7 @@ export interface CoordFormat {
 
 const dd: CoordFormat = {
   key: 'dd',
-  label: '度',
+  label: '°',
   formatLat(v: number) { return v.toFixed(6) + '°'; },
   formatLng(v: number) { return v.toFixed(6) + '°'; },
   coord(lat: number, lng: number) { return `${this.formatLat(lat)}, ${this.formatLng(lng)}`; },
@@ -16,7 +16,7 @@ const dd: CoordFormat = {
 
 const dm: CoordFormat = {
   key: 'dm',
-  label: '度分',
+  label: "° '",
   formatLat(v: number) {
     const d = Math.trunc(v);
     const m = Math.abs(v - d) * 60;
@@ -32,7 +32,7 @@ const dm: CoordFormat = {
 
 const dms: CoordFormat = {
   key: 'dms',
-  label: '度分秒',
+  label: "° ' \"",
   formatLat(v: number) {
     const d = Math.trunc(v);
     const rest = Math.abs(v - d) * 60;
@@ -50,4 +50,6 @@ const dms: CoordFormat = {
   coord(lat: number, lng: number) { return `${this.formatLat(lat)}, ${this.formatLng(lng)}`; },
 };
 
-export const defaultFormats: CoordFormat[] = [dd, dm, dms];
+import { encodingFormats } from './encodings.js';
+
+export const defaultFormats: CoordFormat[] = [dd, dm, dms, ...encodingFormats];
