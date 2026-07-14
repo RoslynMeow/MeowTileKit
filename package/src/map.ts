@@ -5,6 +5,7 @@ import { latLngToTile } from './projection.js';
 import { presets, getPreset } from './presets.js';
 import { defaultFormats } from './format.js';
 import type { CoordFormat } from './format.js';
+import { computeDatums, iso6709, geoUri } from './datums.js';
 
 export interface CreateMapOptions {
   source: string | TileSource;
@@ -60,27 +61,45 @@ function injectStyles(): void {
   const css = document.createElement('style');
   css.id = 'mkt-styles';
   css.textContent = `
-.mkt-drawer{position:fixed;top:0;right:0;width:340px;height:100%;background:#0e0e18;border-left:1px solid #1a1a28;z-index:10000;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC",sans-serif}
+.mkt-drawer{position:fixed;top:0;right:0;width:auto;min-width:280px;max-width:50vw;height:100%;background:#0e0e18;border-left:1px solid #1a1a28;z-index:10000;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC",sans-serif}
 .mkt-drawer.open{transform:translateX(0)}
 .mkt-drawer-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #1a1a28}
 .mkt-drawer-hd h2{font-size:16px;font-weight:600;background:linear-gradient(90deg,#6c5ce7,#4a9eff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .mkt-drawer-close{background:none;border:none;color:#555;font-size:24px;cursor:pointer;padding:0;line-height:1}
 .mkt-drawer-close:hover{color:#d4d4d8}
 .mkt-drawer-body{padding:12px 18px;overflow-y:auto;flex:1}
-.mkt-drawer-body .mkt-sec{margin-bottom:16px}
-.mkt-drawer-body .mkt-sec-title{font-size:12px;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.mkt-box{border:1px solid #1a1a28;border-radius:8px;padding:10px 12px;margin-bottom:14px}
+.mkt-box-title{font-size:12px;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.mkt-box .mkt-box:last-child{margin-bottom:0}
 .mkt-drawer-body .mkt-row{display:flex;align-items:flex-start;gap:10px;padding:6px 0;font-size:15px;font-family:"SF Mono",Menlo,monospace}
 .mkt-drawer-body .mkt-row .mkt-lbl{color:#666;min-width:56px;font-size:13px;font-family:inherit;padding-top:1px}
 .mkt-drawer-body .mkt-row .mkt-val{color:#d4d4d8;font-weight:500;font-family:inherit;line-height:1.5}
 .mkt-drawer-body .mkt-row .mkt-cs{color:#888;font-size:13px;font-family:inherit}
 .mkt-drawer-body .mkt-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:700;flex-shrink:0;margin-top:1px}
 .mkt-tag-w{background:rgba(26,107,60,0.25);color:#6fcf97}
+.mkt-tag-f{background:rgba(108,92,231,0.2);color:#7c6cf0}
+
+
 .mkt-tag-g{background:rgba(107,58,26,0.25);color:#f0ad4e}
 .mkt-tag-b{background:rgba(74,26,107,0.25);color:#bb86fc}
 .mkt-copy{cursor:pointer;transition:opacity .15s}
 .mkt-copy:hover{opacity:.7}
 .mkt-toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:rgba(108,92,231,0.95);color:#fff;padding:8px 20px;border-radius:8px;font-size:14px;z-index:99999;pointer-events:none;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.3);animation:mkt-fade 1.2s ease forwards}
 @keyframes mkt-fade{0%{opacity:1;transform:translateX(-50%) translateY(0)}70%{opacity:1}100%{opacity:0;transform:translateX(-50%) translateY(-12px)}}
+
+/* datums collapse */
+.mkt-datums{font-size:13px;margin-top:4px}
+.mkt-datums summary{color:#555;cursor:pointer;user-select:none;padding:4px 0;font-size:12px;display:flex;align-items:center;gap:4px}
+.mkt-datums summary:hover{color:#888}
+.mkt-datums summary::before{content:'▸';font-size:10px;transition:transform .15s}
+.mkt-datums[open] summary::before{transform:rotate(90deg)}
+.mkt-datums .mkt-drow{display:flex;align-items:center;gap:8px;padding:3px 0 3px 14px;cursor:pointer;transition:opacity .15s;font-family:"SF Mono",Menlo,monospace}
+.mkt-datums .mkt-drow:hover{opacity:.7}
+.mkt-datums .mkt-dlbl{color:#555;min-width:60px;font-size:12px;font-weight:600;flex-shrink:0}
+.mkt-datums .mkt-dval{color:#999;font-size:12px}
+.mkt-datums .mkt-dfmt{color:#666;font-size:11px;margin-left:auto}
+.mkt-datums .mkt-dfn{display:block;color:#555;font-size:11px;padding:2px 0 2px 14px;cursor:pointer;transition:opacity .15s;font-family:"SF Mono",Menlo,monospace}
+.mkt-datums .mkt-dfn:hover{opacity:.7}
 
 /* source select in drawer */
 .mkt-srcsel{background:#0e0e18;color:#d4d4d8;border:1px solid #242438;border-radius:6px;padding:4px 6px;font-size:13px;outline:none;cursor:pointer;flex:1}
@@ -89,8 +108,10 @@ function injectStyles(): void {
 .mkt-row .mkt-srcsel{margin-left:0}
 
 /* format tabs */
-.mkt-ftabs{display:flex;gap:0;padding:0 18px 10px;border-bottom:1px solid #1a1a28}
-.mkt-ftab{font-size:12px;color:#555;padding:4px 14px;cursor:pointer;border-radius:6px;transition:all .15s;user-select:none}
+.mkt-ftabs{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.mkt-ftabs::-webkit-scrollbar{height:4px}
+.mkt-ftabs::-webkit-scrollbar-thumb{background:#1a1a28;border-radius:2px}
+.mkt-ftab{font-size:12px;color:#555;padding:4px 6px;cursor:pointer;border-radius:6px;transition:all .15s;user-select:none;text-align:center}
 .mkt-ftab:hover{color:#d4d4d8;background:rgba(255,255,255,.06)}
 .mkt-ftab-on{color:#4a9eff;background:rgba(74,158,255,.12);font-weight:600}
 
@@ -101,10 +122,40 @@ function injectStyles(): void {
   document.head.appendChild(css);
 }
 
+const STORE_KEY = 'mkt-pos';
+
+const SRC_KEY = 'mkt-src';
+
+function loadSavedPos(): [number, number] | null {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    if (typeof p.lat === 'number' && typeof p.lng === 'number') return [p.lat, p.lng];
+  } catch {}
+  return null;
+}
+
+function loadSavedSource(): string | null {
+  try { return localStorage.getItem(SRC_KEY); } catch { return null; }
+}
+
+function saveSourceId(id: string): void {
+  try { localStorage.setItem(SRC_KEY, id); } catch {}
+}
+
+function savePos(lat: number, lng: number): void {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify({ lat, lng })); } catch {}
+}
+
 export function createMap(container: string | HTMLElement, options: CreateMapOptions): MeowMap {
   const leaflet = options.leaflet ?? getLeaflet();
-  let source = resolveSource(options.source, options.sourceOptions);
-  const [clat, clng] = options.center ?? [39.9042, 116.4074];
+  // saved source overrides string default; TileSource instance always respected
+  const srcArg = typeof options.source === 'string'
+    ? (loadSavedSource() ?? options.source)
+    : options.source;
+  let source = resolveSource(srcArg, options.sourceOptions);
+  let [clat, clng] = options.center ?? loadSavedPos() ?? [39.9042, 116.4074];
   const zoom = options.zoom ?? 12;
   const showMarker = options.marker !== false;
   const showDrawer = options.drawer !== false;
@@ -149,7 +200,7 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
   let formatIdx = 0;
   let currentLat = options.center?.[0] ?? 39.9042;
   let currentLng = options.center?.[1] ?? 116.4074;
-  let currentSourceId = typeof options.source === 'string' ? options.source : '';
+  let currentSourceId = typeof srcArg === 'string' ? srcArg : '';
   const fmts = options.formats ?? defaultFormats;
 
   function toast(msg: string): void {
@@ -169,9 +220,10 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
     });
   }
 
-  function coordRow(sys: string, tagClass: string, lat: number, lng: number, copyVal: string): string {
+  function coordRow(sys: string, tagClass: string, lat: number, lng: number): string {
     const f = fmts[formatIdx];
-    return `<div class="mkt-row mkt-copy" data-copy="${copyVal}"><span class="mkt-tag ${tagClass}">${sys}</span><span class="mkt-val">${f.coord(lat, lng)}</span></div>`;
+    const val = f.coord(lat, lng);
+    return `<div class="mkt-row mkt-copy" data-copy="${val}"><span class="mkt-tag ${tagClass}">${sys}</span><span class="mkt-val">${val}</span></div>`;
   }
 
   function formatTabsHTML(): string {
@@ -183,9 +235,11 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
   function renderCoords(lat: number, lng: number): string {
     const gcj = wgs84ToGcj02(lat, lng);
     const bd = wgs84ToBd09(lat, lng);
-    return coordRow('WGS-84', 'mkt-tag-w', lat, lng, `${lat.toFixed(6)}, ${lng.toFixed(6)}`) +
-      coordRow('GCJ-02', 'mkt-tag-g', gcj.lat, gcj.lng, `${gcj.lat.toFixed(6)}, ${gcj.lng.toFixed(6)}`) +
-      coordRow('BD-09', 'mkt-tag-b', bd.lat, bd.lng, `${bd.lat.toFixed(6)}, ${bd.lng.toFixed(6)}`);
+    return coordRow('WGS-84', 'mkt-tag-w', lat, lng) +
+      coordRow('GCJ-02', 'mkt-tag-g', gcj.lat, gcj.lng) +
+      coordRow('BD-09', 'mkt-tag-b', bd.lat, bd.lng) +
+      `<div class="mkt-row mkt-copy" data-copy="${iso6709(lat, lng)}"><span class="mkt-tag mkt-tag-f">ISO 6709</span><span class="mkt-val">${iso6709(lat, lng)}</span></div>` +
+      `<div class="mkt-row mkt-copy" data-copy="${geoUri(lat, lng)}"><span class="mkt-tag mkt-tag-f">Geo URI</span><span class="mkt-val">${geoUri(lat, lng)}</span></div>`;
   }
 
   function renderMapInfo(lat: number, lng: number): string {
@@ -208,14 +262,28 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
   }
 
   function drawerHeaderHTML(): string {
-    return `<div class="mkt-drawer-hd"><h2>MeowTileKit</h2><button class="mkt-drawer-close">&times;</button></div>
-      <div class="mkt-ftabs">${formatTabsHTML()}</div>`;
+    return `<div class="mkt-drawer-hd"><h2>MeowTileKit</h2><button class="mkt-drawer-close">&times;</button></div>`;
+  }
+
+  function formatBoxHTML(): string {
+    return `<div class="mkt-fbox"><div class="mkt-ftabs">${formatTabsHTML()}</div></div>`;
+  }
+
+  function renderDatums(lat: number, lng: number): string {
+    const datums = computeDatums(lat, lng);
+    const f = fmts[formatIdx];
+    const rows = datums.map(d => {
+      const val = f.coord(d.lat, d.lng);
+      return `<div class="mkt-drow mkt-copy" data-copy="${val}"><span class="mkt-dlbl">${d.label}</span><span class="mkt-dval">${val}</span></div>`;
+    }).join('');
+    return `<details class="mkt-datums"><summary>其他基准 (${datums.length})</summary>${rows}</details>`;
   }
 
   function drawerBodyHTML(lat: number, lng: number): string {
     return `<div class="mkt-drawer-body">
-      <div class="mkt-sec"><div class="mkt-sec-title">坐标</div>${renderCoords(lat, lng)}</div>
-      <div class="mkt-sec"><div class="mkt-sec-title">地图</div>${renderMapInfo(lat, lng)}</div>
+      <div class="mkt-box"><div class="mkt-box-title">坐标</div>${renderCoords(lat, lng)}${renderDatums(lat, lng)}</div>
+      <div class="mkt-box"><div class="mkt-box-title">测量标准</div>${formatBoxHTML()}</div>
+      <div class="mkt-box"><div class="mkt-box-title">地图</div>${renderMapInfo(lat, lng)}</div>
     </div>`;
   }
 
@@ -225,6 +293,7 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
 
   function switchSource(id: string): void {
     currentSourceId = id;
+    saveSourceId(id);
     const newSrc = resolveSource(id);
     source = newSrc;
     // replace tile layer
@@ -256,8 +325,10 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
       el.addEventListener('click', () => {
         const idx = parseInt((el as HTMLElement).dataset.idx!);
         if (idx === formatIdx) return;
+        const wasOpen = drawerEl!.querySelector('.mkt-datums')?.hasAttribute('open');
         formatIdx = idx;
         drawerEl!.innerHTML = fullDrawerHTML(currentLat, currentLng);
+        if (wasOpen) drawerEl!.querySelector('.mkt-datums')?.setAttribute('open', '');
         bindDrawerEvents();
       });
     });
@@ -300,6 +371,7 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
     marker = leaflet.marker([pos.lat, pos.lng], { draggable: true }).addTo(map);
     marker.on('dragend', () => {
       const p = marker.getLatLng();
+      savePos(p.lat, p.lng);
       updateDrawer(p.lat, p.lng);
     });
   }
@@ -316,8 +388,26 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
         icon.classList.add('mkt-pulse');
       }
     }
+    savePos(lat, lng);
     if (showDrawer) openDrawer(lat, lng);
   });
+
+  // try geolocation if no saved position
+  if (!options.center && !loadSavedPos() && navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        const local = toLocal(lat, lng);
+        map.setView([local.lat, local.lng], map.getZoom(), { animate: true });
+        currentLat = lat; currentLng = lng;
+        savePos(lat, lng);
+        if (marker) marker.setLatLng([local.lat, local.lng]);
+        if (showDrawer) openDrawer(lat, lng);
+      },
+      () => {},
+      { timeout: 5000, enableHighAccuracy: true }
+    );
+  }
 
   // init drawer
   if (showDrawer) openDrawer(clat, clng);
