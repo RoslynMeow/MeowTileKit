@@ -8,7 +8,7 @@
 cd package
 npm install
 npm run build
-# 然后双击 demo/index.html 打开
+# 然后双击 docs/index.html 打开
 ```
 
 或者作为 npm 包引入项目：

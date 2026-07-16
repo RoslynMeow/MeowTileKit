@@ -48,7 +48,7 @@
     "url": "git+https://github.com/RoslynMeow/MeowTileKit.git"
   },
   "publishConfig": {
-    "provenance": true
+    "access": "public"
   },
   "license": "MIT",
   "peerDependencies": {
