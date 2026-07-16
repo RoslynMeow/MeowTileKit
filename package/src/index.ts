@@ -10,3 +10,4 @@ export type { CoordFormat } from './format.js';
 export type { Preset } from './presets.js';
 export * from './encodings.js';
 export * from './datums.js';
+export * from './panel.js';

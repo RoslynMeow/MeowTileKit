@@ -38,8 +38,6 @@
       'use strict'
       const { createMap } = window.MeowTileKit
       const app = createMap('map', { source: 'amap' })
-      const open = () => document.querySelector('.mkt-drawer')?.classList.contains('open')
-      document.getElementById('map').addEventListener('click', () => { if (!open()) window.dispatchEvent(new Event('resize')) })
     })()
   </script>
 </body>

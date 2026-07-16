@@ -48,7 +48,7 @@ const { map, source, toLocal, toWgs84 } = createMap('map', {
 - `toLocal(lat, lng)` — 将 WGS-84 转为当前图源的坐标系（用于放置标记）
 - `toWgs84(lat, lng)` — 转回 WGS-84
 
-右键抽屉分三个区域：**坐标**（WGS-84 / GCJ-02 / BD-09、ISO 6709、Geo URI、其他基准折叠）、
+双击打开侧边面板，分三个区域：**坐标**（WGS-84 / GCJ-02 / BD-09、ISO 6709、Geo URI、其他基准折叠）、
 **测量标准**（格式按钮，每行 5 个）、**地图**（图源切换、缩放、瓦片坐标）。
 抽屉宽度自适应内容，最大不超过视口 50%。
 
@@ -114,7 +114,7 @@ import { presets } from 'meow-tile-kit'
 
 ### 坐标编码格式
 
-内置 13 种坐标编码格式，全部作为 `CoordFormat` 实现，可通过 `formats` 选项选择：
+内置 16 种坐标格式，全部作为 `CoordFormat` 实现，可通过 `formats` 选项选择：
 
 | 格式 | 示例 (北京) | 导出名 |
 |---|---|---|
@@ -184,6 +184,31 @@ geoUri(39.9042, 116.4074)   // "geo:39.904200,116.407400"
 // 强制不走持久化
 createMap('map', { center: [39.9, 116.4] }) // 传入 center 则跳过
 ```
+
+### 独立坐标面板
+
+可将坐标/测量标准/地图信息面板放到页面任意位置：
+
+```ts
+import { createMap, CoordPanel } from 'meow-tile-kit'
+
+const app = createMap('map', { source: 'amap', drawer: false })
+
+const panel = new CoordPanel({
+  container: '#sidebar',
+  source: app.source,
+  getZoom: () => app.map.getZoom(),
+  onSourceChange: (id) => {
+    const src = createTileSource(id)
+    // 切换图源逻辑
+  },
+})
+
+app.map.on('click', (e) => panel.update(e.latlng.lat, e.latlng.lng))
+```
+
+面板三栏（坐标 / 测量标准 / 地图），格式切换、其他基准折叠、图源切换、复制全部可用。
+默认响应式样式，用户可覆写 CSS。
 
 ### 自定义图源
 
