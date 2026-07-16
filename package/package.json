@@ -1,6 +1,6 @@
 {
   "name": "meow-tile-kit",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Multi-source map tile switching library with coordinate system support (WGS-84 / GCJ-02 / BD-09)",
   "type": "module",
   "main": "./dist/index.cjs",
