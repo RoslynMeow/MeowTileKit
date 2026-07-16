@@ -8,8 +8,11 @@
 cd package
 npm install
 npm run build
-# 然后双击 docs/index.html 打开
 ```
+
+在线 Demo：[https://roslynmeow.github.io/MeowTileKit/](https://roslynmeow.github.io/MeowTileKit/)
+
+也可直接双击 `docs/index.html` 本地打开（需联网加载 Leaflet CDN）。
 
 或者作为 npm 包引入项目：
 
