@@ -118,6 +118,10 @@ function injectStyles(): void {
 /* marker pulse ring */
 .mkt-pulse::after{content:'';position:absolute;top:50%;left:50%;width:32px;height:32px;margin:-16px 0 0 -16px;border:2.5px solid #4a9eff;border-radius:50%;opacity:0;pointer-events:none;animation:mkt-pulse 1.4s ease-out infinite}
 @keyframes mkt-pulse{0%{transform:scale(.6);opacity:.8}100%{transform:scale(2.2);opacity:0}}
+
+/* cursor: pointer except while dragging */
+.leaflet-grab{cursor:default!important}
+.leaflet-dragging .leaflet-grab{cursor:grabbing!important}
 `;
   document.head.appendChild(css);
 }
@@ -125,13 +129,14 @@ function injectStyles(): void {
 const STORE_KEY = 'mkt-pos';
 
 const SRC_KEY = 'mkt-src';
+const FIDX_KEY = 'mkt-fidx';
 
-function loadSavedPos(): [number, number] | null {
+function loadSavedState(): { lat: number; lng: number; zoom: number } | null {
   try {
     const raw = localStorage.getItem(STORE_KEY);
     if (!raw) return null;
     const p = JSON.parse(raw);
-    if (typeof p.lat === 'number' && typeof p.lng === 'number') return [p.lat, p.lng];
+    if (typeof p.lat === 'number' && typeof p.lng === 'number') return { lat: p.lat, lng: p.lng, zoom: p.zoom ?? 12 };
   } catch {}
   return null;
 }
@@ -144,8 +149,8 @@ function saveSourceId(id: string): void {
   try { localStorage.setItem(SRC_KEY, id); } catch {}
 }
 
-function savePos(lat: number, lng: number): void {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify({ lat, lng })); } catch {}
+function savePos(lat: number, lng: number, zoom?: number): void {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify({ lat, lng, zoom: zoom ?? 12 })); } catch {}
 }
 
 export function createMap(container: string | HTMLElement, options: CreateMapOptions): MeowMap {
@@ -155,8 +160,9 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
     ? (loadSavedSource() ?? options.source)
     : options.source;
   let source = resolveSource(srcArg, options.sourceOptions);
-  let [clat, clng] = options.center ?? loadSavedPos() ?? [39.9042, 116.4074];
-  const zoom = options.zoom ?? 12;
+  const saved = !options.center ? loadSavedState() : null;
+  let [clat, clng] = options.center ?? (saved ? [saved.lat, saved.lng] : [39.9042, 116.4074]);
+  const zoom = options.zoom ?? saved?.zoom ?? 12;
   const showMarker = options.marker !== false;
   const showDrawer = options.drawer !== false;
 
@@ -176,6 +182,7 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
   const mapOptions: Record<string, any> = {
     center: [center.lat, center.lng], zoom,
     attributionControl: true, zoomControl: true,
+    doubleClickZoom: false,
   };
 
   if (options.maxBounds) {
@@ -197,7 +204,14 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
   // ── drawer ──
   let drawerEl: HTMLElement | null = null;
   let drawerOpen = false;
-  let formatIdx = 0;
+  function loadFidx(): number {
+    try { const v = localStorage.getItem(FIDX_KEY); if (v !== null) return Math.max(0, parseInt(v, 10) || 0); } catch {}
+    return 0;
+  }
+  function saveFidx(idx: number): void {
+    try { localStorage.setItem(FIDX_KEY, String(idx)); } catch {}
+  }
+  let formatIdx = loadFidx();
   let currentLat = options.center?.[0] ?? 39.9042;
   let currentLng = options.center?.[1] ?? 116.4074;
   let currentSourceId = typeof srcArg === 'string' ? srcArg : '';
@@ -304,8 +318,7 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
     });
     tileLayer.getTileUrl = (c: any) => source.getTileUrl({ x: c.x, y: c.y, z: c.z });
     map.addLayer(tileLayer);
-    // reposition marker if coord system changed
-    if (marker) {
+    if (marker && showMarker) {
       const p = marker.getLatLng();
       const wgs = toWgs84(p.lat, p.lng);
       const local = toLocal(wgs.lat, wgs.lng);
@@ -326,7 +339,7 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
         const idx = parseInt((el as HTMLElement).dataset.idx!);
         if (idx === formatIdx) return;
         const wasOpen = drawerEl!.querySelector('.mkt-datums')?.hasAttribute('open');
-        formatIdx = idx;
+        formatIdx = idx; saveFidx(idx);
         drawerEl!.innerHTML = fullDrawerHTML(currentLat, currentLng);
         if (wasOpen) drawerEl!.querySelector('.mkt-datums')?.setAttribute('open', '');
         bindDrawerEvents();
@@ -355,6 +368,7 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
     if (!drawerEl) return;
     drawerEl.classList.remove('open');
     drawerOpen = false;
+    removeMarker();
   }
 
   function updateDrawer(lat: number, lng: number): void {
@@ -364,53 +378,80 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
     bindDrawerEvents();
   }
 
-  // ── marker ──
+  // ── marker (lazy) ──
   let marker: any = null;
-  if (showMarker) {
-    const pos = options.center ? toLocal(clat, clng) : center;
-    marker = leaflet.marker([pos.lat, pos.lng], { draggable: true }).addTo(map);
-    marker.on('dragend', () => {
-      const p = marker.getLatLng();
-      savePos(p.lat, p.lng);
-      updateDrawer(p.lat, p.lng);
-    });
+  function ensureMarker(lat: number, lng: number): any {
+    if (!showMarker) return null;
+    if (!marker) {
+      marker = leaflet.marker([lat, lng], {
+        draggable: true,
+        icon: leaflet.divIcon({
+          className: '',
+          html: '<svg width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="9" fill="none" stroke="#4a9eff" stroke-width="2"/><line x1="14" y1="2" x2="14" y2="7" stroke="#4a9eff" stroke-width="2"/><line x1="14" y1="21" x2="14" y2="26" stroke="#4a9eff" stroke-width="2"/><line x1="2" y1="14" x2="7" y2="14" stroke="#4a9eff" stroke-width="2"/><line x1="21" y1="14" x2="26" y2="14" stroke="#4a9eff" stroke-width="2"/><circle cx="14" cy="14" r="2.5" fill="#4a9eff"/></svg>',
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+        })
+      }).addTo(map);
+      marker.on('dragend', () => {
+        const p = marker.getLatLng();
+        savePos(p.lat, p.lng, map.getZoom());
+        updateDrawer(p.lat, p.lng);
+      });
+    }
+    return marker;
+  }
+  function removeMarker(): void {
+    if (marker) { map.removeLayer(marker); marker = null; }
+  }
+  function pulseMarker(): void {
+    if (!marker) return;
+    const icon = marker._icon;
+    if (icon) {
+      icon.classList.remove('mkt-pulse');
+      void icon.offsetWidth;
+      icon.classList.add('mkt-pulse');
+    }
   }
 
-  // ── map click ──
+  // ── map click / dblclick ──
   map.on('click', (e: any) => {
+    currentLat = e.latlng.lat; currentLng = e.latlng.lng;
+    savePos(e.latlng.lat, e.latlng.lng, map.getZoom());
+    updateDrawer(e.latlng.lat, e.latlng.lng);
+  });
+  map.on('dblclick', (e: any) => {
     const { lat, lng } = e.latlng;
-    if (marker) {
+    if (showMarker) {
+      ensureMarker(lat, lng);
       marker.setLatLng([lat, lng]);
-      const icon = marker._icon;
-      if (icon) {
-        icon.classList.remove('mkt-pulse');
-        void icon.offsetWidth; // force reflow
-        icon.classList.add('mkt-pulse');
-      }
+      pulseMarker();
     }
-    savePos(lat, lng);
+    savePos(lat, lng, map.getZoom());
     if (showDrawer) openDrawer(lat, lng);
   });
 
+  // auto-save on every map move/zoom
+  map.on('moveend', () => {
+    const c = map.getCenter();
+    savePos(c.lat, c.lng, map.getZoom());
+  });
+
   // try geolocation if no saved position
-  if (!options.center && !loadSavedPos() && navigator.geolocation) {
+  if (!options.center && !saved && navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
         const local = toLocal(lat, lng);
         map.setView([local.lat, local.lng], map.getZoom(), { animate: true });
         currentLat = lat; currentLng = lng;
-        savePos(lat, lng);
-        if (marker) marker.setLatLng([local.lat, local.lng]);
+        savePos(lat, lng, map.getZoom());
+        if (showMarker) { ensureMarker(local.lat, local.lng); pulseMarker(); }
         if (showDrawer) openDrawer(lat, lng);
       },
       () => {},
       { timeout: 5000, enableHighAccuracy: true }
     );
   }
-
-  // init drawer
-  if (showDrawer) openDrawer(clat, clng);
 
   return { map, source, toLocal, toWgs84 };
 }
