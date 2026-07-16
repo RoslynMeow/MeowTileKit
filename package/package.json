@@ -1,6 +1,6 @@
 {
   "name": "meow-tile-kit",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Multi-source map tile switching library with coordinate system support (WGS-84 / GCJ-02 / BD-09)",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -39,6 +39,17 @@
     "gcj02",
     "wgs84"
   ],
+  "homepage": "https://github.com/RoslynMeow/MeowTileKit",
+  "bugs": {
+    "url": "https://github.com/RoslynMeow/MeowTileKit/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RoslynMeow/MeowTileKit.git"
+  },
+  "publishConfig": {
+    "provenance": true
+  },
   "license": "MIT",
   "peerDependencies": {
     "leaflet": "^1.9.0"
