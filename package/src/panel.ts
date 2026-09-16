@@ -28,6 +28,7 @@ export class CoordPanel {
   private onLocate?: (lat: number, lng: number) => void;
   private locateFormats: CoordFormat[];
   private locateFmtKey = 'auto';
+  private locateHelpOpen = false;
   private lastLat = 39.9042;
   private lastLng = 116.4074;
 
@@ -66,20 +67,27 @@ export class CoordPanel {
 
   private render(): void {
     this.el.innerHTML = `
-      <div class="mkt-box"><div class="mkt-box-title">定位</div>
+      <div class="mkt-box"><div class="mkt-box-title">定位<button class="mkt-help-btn" type="button" title="帮助">?</button></div>
         <div class="mkt-locate">
           <div class="mkt-locate-row">
             <select class="mkt-locate-fmt"></select>
             <input class="mkt-locate-input" placeholder="粘贴或输入坐标…" />
           </div>
           <button class="mkt-locate-btn" type="button">定位到该点</button>
+          <div class="mkt-help"${this.locateHelpOpen ? '' : ' hidden'}>
+            <div>自动识别以下格式，也可用 <code>格式:值</code> 前缀强制指定：</div>
+            <div><code>39.9,116.4</code> 十进制度 · <code>39° 54' 15.1"</code> 度分秒</div>
+            <div><code>wx4g0bm</code> Geohash · <code>8PFRWC34+MX</code> OLC</div>
+            <div><code>50N 449345 4417292</code> UTM · <code>50S AA 40123 98803</code> MGRS</div>
+            <div><code>geo:39.9,116.4</code> Geo URI · <code>+39.9+116.4/</code> ISO 6709</div>
+            <div>参数形式 <code>{"format":"utm","zone":50,"hemisphere":"N","easting":449345,"northing":4417292}</code></div>
+          </div>
         </div>
       </div>
-      <div class="mkt-box"><div class="mkt-box-title">坐标</div>
-        <div class="mkt-p-coords"></div>
-      </div>
-      <div class="mkt-box"><div class="mkt-box-title">测量标准</div>
+      <div class="mkt-box"><div class="mkt-box-title">当前坐标</div>
+        <div class="mkt-hero mkt-copy" title="点击复制"><span class="mkt-hero-val mkt-p-hero"></span><span class="mkt-hero-cp">复制</span></div>
         <div class="mkt-ftabs mkt-p-ftabs"></div>
+        <div class="mkt-p-coords"></div>
       </div>
       <div class="mkt-box"><div class="mkt-box-title">地图</div>
         <div class="mkt-p-minfo"></div>
@@ -116,7 +124,8 @@ export class CoordPanel {
   }
 
   private renderCoords(): void {
-    const { lat, lng } = { lat: this.lastLat, lng: this.lastLng };
+    const lat = this.lastLat;
+    const lng = this.lastLng;
     const f = this.formats[this.formatIdx];
     const gcj = wgs84ToGcj02(lat, lng);
     const bd = wgs84ToBd09(lat, lng);
@@ -131,6 +140,14 @@ export class CoordPanel {
       const val = f.coord(d.lat, d.lng);
       return `<div class="mkt-p-row mkt-copy" data-copy="${val}"><span class="mkt-p-dlbl">${d.label}</span><span class="mkt-p-dval">${val}</span></div>`;
     }).join('');
+
+    const hero = this.el.querySelector('.mkt-p-hero') as HTMLElement | null;
+    if (hero) {
+      const val = f.coord(lat, lng);
+      hero.textContent = val;
+      const box = hero.parentElement;
+      if (box) box.dataset.copy = val;
+    }
 
     const el = this.el.querySelector('.mkt-p-coords');
     if (!el) return;
@@ -199,9 +216,11 @@ export class CoordPanel {
     if (!info) return;
     info.innerHTML = `
       <div class="mkt-p-row"><span class="mkt-p-lbl">图源</span><select class="mkt-p-srcsel mkt-srcsel">${opts}</select></div>
-      <div class="mkt-p-row"><span class="mkt-p-lbl">缩放</span><span class="mkt-p-val">${z}</span></div>
-      <div class="mkt-p-row"><span class="mkt-p-lbl">瓦片</span><span class="mkt-p-val">${tile.z}/${tile.x}/${tile.y}</span></div>
-      <div class="mkt-p-row"><span class="mkt-p-lbl">区域</span><span class="mkt-p-val">${isInChina(this.lastLat, this.lastLng) ? '境内' : '境外'}</span></div>`;
+      <div class="mkt-stats">
+        <div class="mkt-stat"><span class="mkt-stat-k">缩放</span><span class="mkt-stat-v">${z}</span></div>
+        <div class="mkt-stat"><span class="mkt-stat-k">瓦片</span><span class="mkt-stat-v">${tile.z}/${tile.x}/${tile.y}</span></div>
+        <div class="mkt-stat"><span class="mkt-stat-k">区域</span><span class="mkt-stat-v">${isInChina(this.lastLat, this.lastLng) ? '境内' : '境外'}</span></div>
+      </div>`;
     this.renderSourceSelect();
   }
 
@@ -223,6 +242,13 @@ export class CoordPanel {
     });
     this.el.querySelector('.mkt-locate-fmt')?.addEventListener('change', (e: any) => {
       this.locateFmtKey = e.target.value;
+    });
+    const helpBtn = this.el.querySelector('.mkt-help-btn');
+    const helpBox = this.el.querySelector('.mkt-help');
+    helpBtn?.addEventListener('click', () => {
+      this.locateHelpOpen = !this.locateHelpOpen;
+      helpBox?.toggleAttribute('hidden', !this.locateHelpOpen);
+      helpBtn.classList.toggle('on', this.locateHelpOpen);
     });
   }
 
@@ -248,7 +274,7 @@ export class CoordPanel {
 .mkt-p-datums summary:hover{color:#a9a9bd}
 .mkt-p-datums summary::before{content:'▸';font-size:10px;display:inline-block;margin-right:6px;transition:transform .18s}
 .mkt-p-datums[open] summary::before{transform:rotate(90deg)}
-.mkt-p-ftabs{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+.mkt-p-ftabs{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:5px;margin-bottom:4px}
 .mkt-locate{display:flex;flex-direction:column;gap:8px}
 .mkt-locate-row{display:flex;gap:8px}
 .mkt-locate-fmt{background:rgba(255,255,255,.04);color:#c8c8d4;border:1px solid rgba(255,255,255,.09);border-radius:9px;padding:8px;font-size:12px;outline:none;cursor:pointer;max-width:120px;flex-shrink:0}
@@ -261,6 +287,12 @@ export class CoordPanel {
 .mkt-locate-btn{background:linear-gradient(120deg,#6c5ce7,#4a9eff);color:#fff;border:none;border-radius:9px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;transition:filter .15s,transform .1s}
 .mkt-locate-btn:hover{filter:brightness(1.12)}
 .mkt-locate-btn:active{transform:scale(.98)}
+.mkt-help-btn{margin-left:auto;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#8a8a99;width:20px;height:20px;border-radius:50%;font-size:11px;font-weight:700;cursor:pointer;line-height:1;padding:0;transition:all .15s;text-transform:none}
+.mkt-help-btn:hover{color:#fff;border-color:rgba(74,158,255,.5)}
+.mkt-help-btn.on{color:#8fc0ff;border-color:rgba(74,158,255,.5);background:rgba(74,158,255,.14)}
+.mkt-help{margin-top:8px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);font-size:11.5px;color:#a9a9bd;line-height:2}
+.mkt-help[hidden]{display:none}
+.mkt-help code{color:#8b9dd4;font-family:"SF Mono",ui-monospace,Menlo,monospace;background:rgba(255,255,255,.05);padding:1px 5px;border-radius:4px;white-space:nowrap}
 .mkt-ftab{font-size:12px;color:#7a7a90;padding:6px 4px;cursor:pointer;border-radius:8px;transition:all .15s;user-select:none;text-align:center;border:1px solid transparent;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mkt-ftab:hover{color:#e2e2ea;background:rgba(255,255,255,.06)}
 .mkt-ftab-on{color:#8fc0ff;background:rgba(74,158,255,.14);border-color:rgba(74,158,255,.3);font-weight:600}
@@ -269,6 +301,14 @@ export class CoordPanel {
 .mkt-tag-f{background:rgba(139,123,255,.16);color:#a99cff}
 .mkt-tag-g{background:rgba(240,173,78,.14);color:#f0ad4e}
 .mkt-tag-b{background:rgba(187,134,252,.16);color:#c49bff}
+.mkt-hero{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-radius:12px;background:linear-gradient(120deg,rgba(108,92,231,.2),rgba(74,158,255,.1) 70%,transparent);border:1px solid rgba(139,123,255,.3);margin-bottom:10px;cursor:pointer;transition:filter .15s,border-color .15s}
+.mkt-hero:hover{filter:brightness(1.12);border-color:rgba(139,123,255,.5)}
+.mkt-hero-val{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:15px;font-weight:600;color:#ececff;word-break:break-all;line-height:1.4}
+.mkt-hero-cp{font-size:11px;color:#b3a7ff;flex-shrink:0;border:1px solid rgba(139,123,255,.35);border-radius:6px;padding:2px 7px;background:rgba(139,123,255,.08)}
+.mkt-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.mkt-stat{background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);border-radius:9px;padding:7px 9px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.mkt-stat-k{font-size:10px;color:#6a6a80;text-transform:uppercase;letter-spacing:.6px}
+.mkt-stat-v{font-size:12px;color:#e2e2ea;font-family:"SF Mono",ui-monospace,Menlo,monospace;word-break:break-all}
 `;
     document.head.appendChild(css);
   }

@@ -81,6 +81,11 @@ describe('parseCoord auto-detect', () => {
   it('拒绝无效输入', () => {
     expect(parseCoord('not a coordinate')).toBeNull();
   });
+
+  it('不把普通单词误判为网格码', () => {
+    expect(parseCoord('beijing')).toBeNull();
+    expect(parseCoord('tokyo')).toBeNull();
+  });
 });
 
 describe('standard code samples', () => {

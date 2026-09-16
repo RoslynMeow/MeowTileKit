@@ -1,9 +1,8 @@
 import type { TileSource, TileSourceOptions, LatLng } from './types.js';
 import { OSMSource, AMapSource, GoogleSource, TencentSource, CartoSource, EsriSource, OpenTopoSource, WikimediaSource } from './sources/index.js';
-import { wgs84ToGcj02, gcj02ToWgs84, wgs84ToBd09, bd09ToWgs84, isInChina } from './coord.js';
-import { latLngToTile } from './projection.js';
-import { presets, getPreset } from './presets.js';
-import { defaultFormats, extraFormats, parseCoord } from './format.js';
+import { wgs84ToGcj02, gcj02ToWgs84, wgs84ToBd09, bd09ToWgs84 } from './coord.js';
+import { getPreset } from './presets.js';
+import { defaultFormats, parseCoord } from './format.js';
 import type { CoordFormat } from './format.js';
 import type { CoordParam } from './decoders.js';
 import { computeDatums, iso6709, geoUri } from './datums.js';
@@ -17,10 +16,12 @@ export interface CreateMapOptions {
   leaflet?: any;
   marker?: boolean;
   drawer?: boolean;
+  /** 面板是否在加载后默认展开，默认 true */
+  panelOpen?: boolean;
+  /** 是否使用 Leaflet 内置缩放按钮，默认 true（关掉可自建控件） */
+  zoomControl?: boolean;
   /** 自定义坐标格式列表，默认内置全部格式（defaultFormats） */
   formats?: CoordFormat[];
-  /** 定位输入框可选的格式列表，默认全部内置格式（含 ISO 6709 / Geo URI） */
-  locateFormats?: CoordFormat[];
 }
 
 let L: any = null;
@@ -62,9 +63,18 @@ export interface MeowMap {
    * @param input 坐标字符串（如 `"wx4g0bm"`、`"50N 449345 4417292"`、`"39.9,116.4"`），
    *              或 `[lat,lng]`、`{lat,lng}`、参数对象（见 `decodeCoord`）。
    * @param format 可选，强制使用某个格式解析（如 `"utm"`）。
+   * @param zoom 可选，定位后的缩放级别，默认保持当前缩放。
    * @returns 解析出的 WGS-84 坐标，失败返回 null。
    */
-  locate(input: CoordParam, format?: string): LatLng | null;
+  locate(input: CoordParam, format?: string, zoom?: number): LatLng | null;
+  /** 切换底图图源（预设 id，如 `'osm'` / `'amap'`）。 */
+  setSource(id: string): void;
+  /** 当前图源的预设 id（传入 TileSource 实例时为空字符串）。 */
+  getSourceId(): string;
+  /** 在坐标面板里追加自定义 HTML（随面板重绘保留）；传 '' 清除。 */
+  setPanelExtra(html: string): void;
+  /** 展开坐标面板。 */
+  openPanel(): void;
 }
 
 function injectStyles(): void {
@@ -118,32 +128,18 @@ function injectStyles(): void {
 .mkt-datums .mkt-dlbl{color:#6a6a80;min-width:56px;font-size:12px;font-weight:600;flex-shrink:0}
 .mkt-datums .mkt-dval{color:#9a9aad;font-size:12px;word-break:break-all}
 
-/* locate box */
-.mkt-locate{display:flex;flex-direction:column;gap:8px}
-.mkt-locate-row{display:flex;gap:8px}
-.mkt-locate-fmt{background:rgba(255,255,255,.04);color:#c8c8d4;border:1px solid rgba(255,255,255,.09);border-radius:9px;padding:8px 8px;font-size:12px;outline:none;cursor:pointer;max-width:120px;flex-shrink:0;transition:border-color .15s}
-.mkt-locate-fmt:hover,.mkt-locate-fmt:focus{border-color:rgba(74,158,255,.5)}
-.mkt-locate-input{flex:1;min-width:0;background:rgba(255,255,255,.04);color:#e6e6f0;border:1px solid rgba(255,255,255,.09);border-radius:9px;padding:9px 12px;font-size:13px;font-family:"SF Mono",ui-monospace,Menlo,monospace;outline:none;transition:border-color .15s,background .15s}
-.mkt-locate-input::placeholder{color:#5a5a70}
-.mkt-locate-input:focus{border-color:rgba(74,158,255,.65);background:rgba(74,158,255,.06)}
-.mkt-locate-input.mkt-err{border-color:rgba(255,90,90,.7);animation:mkt-shake .3s}
-@keyframes mkt-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
-.mkt-locate-btn{background:linear-gradient(120deg,#6c5ce7,#4a9eff);color:#fff;border:none;border-radius:9px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;transition:filter .15s,transform .1s;letter-spacing:.3px}
-.mkt-locate-btn:hover{filter:brightness(1.12)}
-.mkt-locate-btn:active{transform:scale(.98)}
-.mkt-locate-hint{font-size:11px;color:#5a5a70;line-height:1.6}
-.mkt-locate-hint code{color:#8b9dd4;font-family:"SF Mono",ui-monospace,Menlo,monospace;background:rgba(255,255,255,.05);padding:1px 5px;border-radius:4px}
-
-/* source select in drawer */
-.mkt-srcsel{background:rgba(255,255,255,.04);color:#d4d4d8;border:1px solid rgba(255,255,255,.09);border-radius:8px;padding:6px 8px;font-size:13px;outline:none;cursor:pointer;flex:1;min-width:0;transition:border-color .15s}
-.mkt-srcsel:hover,.mkt-srcsel:focus{border-color:rgba(74,158,255,.5)}
-.mkt-srcsel optgroup{color:#8a8a99;font-size:12px}
-
 /* format tabs */
-.mkt-ftabs{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+.mkt-ftabs{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:5px;margin-bottom:4px}
 .mkt-ftab{font-size:12px;color:#7a7a90;padding:6px 4px;cursor:pointer;border-radius:8px;transition:all .15s;user-select:none;text-align:center;border:1px solid transparent;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mkt-ftab:hover{color:#e2e2ea;background:rgba(255,255,255,.06)}
-.mkt-ftab-on{color:#8fc0ff;background:rgba(74,158,255,.14);border-color:rgba(74,158,255,.3);font-weight:600}
+.mkt-ftab-on{color:#8fc0ff;background:rgba(74,158,255,.16);border-color:rgba(74,158,255,.35);font-weight:600}
+
+/* primary readout */
+.mkt-hero{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-radius:12px;background:linear-gradient(120deg,rgba(108,92,231,.2),rgba(74,158,255,.1) 70%,transparent);border:1px solid rgba(139,123,255,.3);margin-bottom:10px;cursor:pointer;transition:filter .15s,border-color .15s}
+.mkt-hero:hover{filter:brightness(1.12);border-color:rgba(139,123,255,.5)}
+.mkt-hero-val{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:15px;font-weight:600;color:#ececff;word-break:break-all;line-height:1.4;letter-spacing:.2px}
+.mkt-hero-cp{font-size:11px;color:#b3a7ff;flex-shrink:0;border:1px solid rgba(139,123,255,.35);border-radius:6px;padding:2px 7px;background:rgba(139,123,255,.08)}
+.mkt-coords{display:flex;flex-direction:column;gap:1px}
 
 /* marker pulse ring */
 .mkt-pulse::after{content:'';position:absolute;top:50%;left:50%;width:32px;height:32px;margin:-16px 0 0 -16px;border:2.5px solid #4a9eff;border-radius:50%;opacity:0;pointer-events:none;animation:mkt-pulse 1.4s ease-out infinite}
@@ -196,6 +192,7 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
   const zoom = options.zoom ?? saved?.zoom ?? 12;
   const showMarker = options.marker !== false;
   const showDrawer = options.drawer !== false;
+  const panelOpen = options.panelOpen !== false;
 
   const toLocal = (lat: number, lng: number) => {
     if (source.coordSystem === 'gcj02') return wgs84ToGcj02(lat, lng);
@@ -212,7 +209,7 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
 
   const mapOptions: Record<string, any> = {
     center: [center.lat, center.lng], zoom,
-    attributionControl: true, zoomControl: true,
+    attributionControl: true, zoomControl: options.zoomControl !== false,
     doubleClickZoom: false,
   };
 
@@ -235,6 +232,7 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
   // ── drawer ──
   let drawerEl: HTMLElement | null = null;
   let drawerOpen = false;
+  let panelExtraHtml = '';
 
   // ── floating panel drag ──
   let dragging = false;
@@ -329,9 +327,6 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
   let currentLng = options.center?.[1] ?? 116.4074;
   let currentSourceId = typeof srcArg === 'string' ? srcArg : '';
   const fmts = options.formats ?? defaultFormats;
-  const locateFmts = options.locateFormats ?? [...defaultFormats, ...extraFormats];
-  let locateValue = '';
-  let locateFmtKey = 'auto';
 
   function esc(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -366,41 +361,24 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
     ).join('');
   }
 
-  function renderCoords(lat: number, lng: number): string {
+  function renderSystems(lat: number, lng: number): string {
     const gcj = wgs84ToGcj02(lat, lng);
     const bd = wgs84ToBd09(lat, lng);
     return coordRow('WGS-84', 'mkt-tag-w', lat, lng) +
       coordRow('GCJ-02', 'mkt-tag-g', gcj.lat, gcj.lng) +
       coordRow('BD-09', 'mkt-tag-b', bd.lat, bd.lng) +
-      `<div class="mkt-row mkt-copy" data-copy="${iso6709(lat, lng)}"><span class="mkt-tag mkt-tag-f">ISO 6709</span><span class="mkt-val">${iso6709(lat, lng)}</span></div>` +
-      `<div class="mkt-row mkt-copy" data-copy="${geoUri(lat, lng)}"><span class="mkt-tag mkt-tag-f">Geo URI</span><span class="mkt-val">${geoUri(lat, lng)}</span></div>`;
+      `<div class="mkt-row mkt-copy" data-copy="${esc(iso6709(lat, lng))}"><span class="mkt-tag mkt-tag-f">ISO 6709</span><span class="mkt-val">${iso6709(lat, lng)}</span></div>` +
+      `<div class="mkt-row mkt-copy" data-copy="${esc(geoUri(lat, lng))}"><span class="mkt-tag mkt-tag-f">Geo URI</span><span class="mkt-val">${geoUri(lat, lng)}</span></div>`;
   }
 
-  function renderMapInfo(lat: number, lng: number): string {
-    const tile = latLngToTile(lat, lng, map.getZoom());
-    return `<div class="mkt-row"><span class="mkt-lbl">图源</span>${sourceSelectHTML()}</div>
-      <div class="mkt-row"><span class="mkt-lbl">缩放</span><span class="mkt-val">${map.getZoom()}</span></div>
-      <div class="mkt-row"><span class="mkt-lbl">瓦片</span><span class="mkt-val">${tile.z}/${tile.x}/${tile.y}</span></div>
-      <div class="mkt-row"><span class="mkt-lbl">区域</span><span class="mkt-val">${isInChina(lat, lng) ? '境内' : '境外'}</span></div>`;
-  }
-
-  function sourceSelectHTML(): string {
-    const groups: Record<string, any[]> = {};
-    presets.forEach(p => (groups[p.group] ??= []).push(p));
-    const opts = Object.entries(groups).map(([g, items]) =>
-      `<optgroup label="${g}">${items.map(p =>
-        `<option value="${p.id}"${p.id === currentSourceId ? ' selected' : ''}>${p.label}</option>`
-      ).join('')}</optgroup>`
-    ).join('');
-    return `<select class="mkt-srcsel">${opts}</select>`;
+  function heroHTML(lat: number, lng: number): string {
+    const val = fmts[formatIdx].coord(lat, lng);
+    return `<div class="mkt-hero mkt-copy" data-copy="${esc(val)}" title="点击复制">
+      <span class="mkt-hero-val">${esc(val)}</span><span class="mkt-hero-cp">复制</span></div>`;
   }
 
   function drawerHeaderHTML(): string {
     return `<div class="mkt-drawer-hd"><div class="mkt-drawer-title"><span class="mkt-grip"></span><h2>MeowTileKit</h2></div><button class="mkt-drawer-close">&times;</button></div>`;
-  }
-
-  function formatBoxHTML(): string {
-    return `<div class="mkt-fbox"><div class="mkt-ftabs">${formatTabsHTML()}</div></div>`;
   }
 
   function renderDatums(lat: number, lng: number): string {
@@ -408,34 +386,21 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
     const f = fmts[formatIdx];
     const rows = datums.map(d => {
       const val = f.coord(d.lat, d.lng);
-      return `<div class="mkt-drow mkt-copy" data-copy="${val}"><span class="mkt-dlbl">${d.label}</span><span class="mkt-dval">${val}</span></div>`;
+      return `<div class="mkt-drow mkt-copy" data-copy="${esc(val)}"><span class="mkt-dlbl">${d.label}</span><span class="mkt-dval">${val}</span></div>`;
     }).join('');
     return `<details class="mkt-datums"><summary>其他基准 (${datums.length})</summary>${rows}</details>`;
   }
 
-  function renderLocateHTML(): string {
-    const opts = [`<option value="auto"${locateFmtKey === 'auto' ? ' selected' : ''}>自动识别</option>`]
-      .concat(locateFmts.map(f =>
-        `<option value="${f.key}"${f.key === locateFmtKey ? ' selected' : ''}>${esc(f.label)}</option>`
-      )).join('');
-    return `<div class="mkt-box"><div class="mkt-box-title">定位</div>
-      <div class="mkt-locate">
-        <div class="mkt-locate-row">
-          <select class="mkt-locate-fmt">${opts}</select>
-          <input class="mkt-locate-input" placeholder="粘贴或输入坐标…" value="${esc(locateValue)}" />
-        </div>
-        <button class="mkt-locate-btn">定位到该点</button>
-        <div class="mkt-locate-hint">支持 <code>39.9,116.4</code> · <code>wx4g0bm</code> · <code>50N 449345 4417292</code> · <code>8P9C3W6X+6X</code>，或 JSON 参数 <code>{"format":"utm","zone":50,...}</code></div>
-      </div>
-    </div>`;
-  }
-
   function drawerBodyHTML(lat: number, lng: number): string {
     return `<div class="mkt-drawer-body">
-      ${renderLocateHTML()}
-      <div class="mkt-box"><div class="mkt-box-title">坐标</div>${renderCoords(lat, lng)}${renderDatums(lat, lng)}</div>
-      <div class="mkt-box"><div class="mkt-box-title">测量标准</div>${formatBoxHTML()}</div>
-      <div class="mkt-box"><div class="mkt-box-title">地图</div>${renderMapInfo(lat, lng)}</div>
+      <div class="mkt-box">
+        <div class="mkt-box-title">当前坐标</div>
+        ${heroHTML(lat, lng)}
+        <div class="mkt-ftabs">${formatTabsHTML()}</div>
+        <div class="mkt-coords">${renderSystems(lat, lng)}</div>
+        ${renderDatums(lat, lng)}
+      </div>
+      ${panelExtraHtml}
     </div>`;
   }
 
@@ -484,37 +449,6 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
         bindDrawerEvents();
       });
     });
-    drawerEl?.querySelector('.mkt-srcsel')?.addEventListener('change', (e: any) => {
-      switchSource(e.target.value);
-    });
-
-    const locateInput = drawerEl?.querySelector('.mkt-locate-input') as HTMLInputElement | null;
-    const locateSel = drawerEl?.querySelector('.mkt-locate-fmt') as HTMLSelectElement | null;
-    const locateBtn = drawerEl?.querySelector('.mkt-locate-btn');
-
-    const submitLocate = () => {
-      const val = (locateInput?.value ?? '').trim();
-      if (!val) return;
-      locateValue = val;
-      locateFmtKey = locateSel?.value ?? 'auto';
-      const r = locate(parseLocateInput(val), locateFmtKey === 'auto' ? undefined : locateFmtKey);
-      if (r) {
-        toast('已定位 ' + r.lat.toFixed(5) + ', ' + r.lng.toFixed(5), 'ok');
-      } else {
-        toast('无法解析该坐标', 'err');
-        if (locateInput) {
-          locateInput.classList.add('mkt-err');
-          setTimeout(() => locateInput.classList.remove('mkt-err'), 1200);
-        }
-      }
-    };
-
-    locateBtn?.addEventListener('click', submitLocate);
-    locateInput?.addEventListener('keydown', (e: any) => {
-      if (e.key === 'Enter') { e.preventDefault(); submitLocate(); }
-    });
-    locateInput?.addEventListener('input', () => { locateValue = locateInput.value; });
-    locateSel?.addEventListener('change', () => { locateFmtKey = locateSel.value; });
   }
 
   function openDrawer(lat: number, lng: number): void {
@@ -544,6 +478,18 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
     currentLat = lat; currentLng = lng;
     drawerEl.innerHTML = fullDrawerHTML(lat, lng);
     bindDrawerEvents();
+  }
+
+  /** 在坐标面板里追加一段自定义 HTML（会随面板每次重绘保留）。传空字符串清除。 */
+  function setPanelExtra(html: string): void {
+    panelExtraHtml = html || '';
+    if (drawerOpen) updateDrawer(currentLat, currentLng);
+  }
+
+  /** 展开坐标面板（若启用）。 */
+  function openPanel(): void {
+    if (!showDrawer) return;
+    openDrawer(currentLat, currentLng);
   }
 
   // ── marker (lazy) ──
@@ -581,23 +527,15 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
     }
   }
 
-  function parseLocateInput(value: string): CoordParam {
-    const t = value.trim();
-    if (t.startsWith('{') || t.startsWith('[')) {
-      try { return JSON.parse(t); } catch { /* fall through */ }
-    }
-    return value;
-  }
-
   // ── locate ──
-  function locate(input: CoordParam, format?: string): LatLng | null {
-    const key = format ?? (locateFmtKey !== 'auto' ? locateFmtKey : undefined);
-    const wgs = parseCoord(input, key);
+  function locate(input: CoordParam, format?: string, zoom?: number): LatLng | null {
+    const wgs = parseCoord(input, format);
     if (!wgs) return null;
     const local = toLocal(wgs.lat, wgs.lng);
+    const z = zoom ?? map.getZoom();
     currentLat = wgs.lat; currentLng = wgs.lng;
-    savePos(wgs.lat, wgs.lng, map.getZoom());
-    map.setView([local.lat, local.lng], map.getZoom(), { animate: true });
+    savePos(wgs.lat, wgs.lng, z);
+    map.setView([local.lat, local.lng], z, { animate: true });
     if (showMarker) {
       const m = ensureMarker(local.lat, local.lng);
       if (m) { m.setLatLng([local.lat, local.lng]); pulseMarker(); }
@@ -646,5 +584,18 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
     );
   }
 
-  return { map, source, toLocal, toWgs84, locate };
+  // open the floating panel by default
+  if (showDrawer && panelOpen) openDrawer(clat, clng);
+
+  return {
+    map,
+    get source() { return source; },
+    toLocal,
+    toWgs84,
+    locate,
+    setSource: switchSource,
+    getSourceId: () => currentSourceId,
+    setPanelExtra,
+    openPanel,
+  };
 }
