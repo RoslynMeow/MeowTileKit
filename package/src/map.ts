@@ -93,6 +93,13 @@ function injectStyles(): void {
 .mkt-drawer-hd h2{font-size:15px;font-weight:700;letter-spacing:.3px;background:linear-gradient(120deg,#8b7bff,#4a9eff 55%,#39d3c3);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;white-space:nowrap}
 .mkt-drawer-close{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);color:#8a8a99;font-size:18px;cursor:pointer;width:28px;height:28px;border-radius:8px;line-height:1;transition:all .15s;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .mkt-drawer-close:hover{color:#fff;background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.14)}
+.mkt-drawer-collapse{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);color:#8a8a99;font-size:18px;cursor:pointer;width:28px;height:28px;border-radius:8px;line-height:1;transition:all .15s;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mkt-drawer-collapse:hover{color:#fff;background:rgba(74,158,255,.18);border-color:rgba(74,158,255,.4)}
+.mkt-drawer-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.mkt-drawer.mkt-collapsed{transform:translateX(calc(100% + 40px));opacity:0;pointer-events:none}
+.mkt-drawer-tab{position:fixed;top:50%;right:0;transform:translateY(-50%);z-index:10000;width:26px;height:78px;border-radius:12px 0 0 12px;background:linear-gradient(180deg,rgba(16,16,28,.95),rgba(11,11,20,.97));border:1px solid rgba(255,255,255,.09);border-right:none;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#a9a9bd;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:-8px 0 22px rgba(0,0,0,.4);transition:background .15s,color .15s}
+.mkt-drawer-tab[hidden]{display:none}
+.mkt-drawer-tab:hover{color:#fff;background:linear-gradient(180deg,rgba(74,158,255,.28),rgba(74,158,255,.16))}
 .mkt-drawer-body{padding:14px 16px 18px;overflow-y:auto;flex:1;min-height:0}
 .mkt-drawer-body::-webkit-scrollbar{width:8px}
 .mkt-drawer-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:4px}
@@ -232,6 +239,8 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
   // ── drawer ──
   let drawerEl: HTMLElement | null = null;
   let drawerOpen = false;
+  let drawerCollapsed = false;
+  let drawerTab: HTMLElement | null = null;
   let panelExtraHtml = '';
 
   // ── floating panel drag ──
@@ -309,7 +318,7 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
       window.addEventListener('resize', clampPanel);
     }
     drawerEl.querySelector('.mkt-drawer-hd')?.addEventListener('pointerdown', (e: any) => {
-      if ((e.target as HTMLElement).closest('.mkt-drawer-close')) return;
+      if ((e.target as HTMLElement).closest('.mkt-drawer-actions')) return;
       startDrag(e.clientX, e.clientY);
       e.preventDefault();
     });
@@ -378,7 +387,7 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
   }
 
   function drawerHeaderHTML(): string {
-    return `<div class="mkt-drawer-hd"><div class="mkt-drawer-title"><span class="mkt-grip"></span><h2>MeowTileKit</h2></div><button class="mkt-drawer-close">&times;</button></div>`;
+    return `<div class="mkt-drawer-hd"><div class="mkt-drawer-title"><span class="mkt-grip"></span><h2>MeowTileKit</h2></div><div class="mkt-drawer-actions"><button class="mkt-drawer-collapse" type="button" title="收起">&rsaquo;</button><button class="mkt-drawer-close" type="button" title="关闭">&times;</button></div></div>`;
   }
 
   function renderDatums(lat: number, lng: number): string {
@@ -436,6 +445,7 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
 
   function bindDrawerEvents(): void {
     drawerEl?.querySelector('.mkt-drawer-close')?.addEventListener('click', () => closeDrawer());
+    drawerEl?.querySelector('.mkt-drawer-collapse')?.addEventListener('click', () => collapseDrawer());
     bindDrag();
     bindCopy();
     drawerEl?.querySelectorAll('.mkt-ftab').forEach(el => {
@@ -451,6 +461,39 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
     });
   }
 
+  function ensureTab(): HTMLElement {
+    if (!drawerTab) {
+      drawerTab = document.createElement('div');
+      drawerTab.className = 'mkt-drawer-tab';
+      drawerTab.title = '展开坐标面板';
+      drawerTab.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
+      drawerTab.addEventListener('click', () => expandDrawer());
+      document.body.appendChild(drawerTab);
+    }
+    return drawerTab;
+  }
+
+  function collapseDrawer(): void {
+    if (!drawerEl) return;
+    drawerCollapsed = true;
+    drawerOpen = true;
+    drawerEl.classList.remove('open');
+    drawerEl.classList.add('mkt-collapsed');
+    ensureTab().hidden = false;
+  }
+
+  function expandDrawer(): void {
+    if (!drawerEl) return;
+    drawerCollapsed = false;
+    drawerOpen = true;
+    drawerEl.classList.remove('mkt-collapsed');
+    injectStyles();
+    drawerEl.innerHTML = fullDrawerHTML(currentLat, currentLng);
+    bindDrawerEvents();
+    requestAnimationFrame(() => { drawerEl!.classList.add('open'); });
+    if (drawerTab) drawerTab.hidden = true;
+  }
+
   function openDrawer(lat: number, lng: number): void {
     injectStyles();
     if (!drawerEl) {
@@ -459,6 +502,9 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
       document.body.appendChild(drawerEl);
       restorePanelPos();
     }
+    drawerCollapsed = false;
+    drawerEl.classList.remove('mkt-collapsed');
+    if (drawerTab) drawerTab.hidden = true;
     currentLat = lat; currentLng = lng;
     drawerEl.innerHTML = fullDrawerHTML(lat, lng);
     bindDrawerEvents();
@@ -469,6 +515,9 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
   function closeDrawer(): void {
     if (!drawerEl) return;
     drawerEl.classList.remove('open');
+    drawerEl.classList.remove('mkt-collapsed');
+    if (drawerTab) drawerTab.hidden = true;
+    drawerCollapsed = false;
     drawerOpen = false;
     removeMarker();
   }
