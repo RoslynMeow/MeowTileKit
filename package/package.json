@@ -39,13 +39,13 @@
     "gcj02",
     "wgs84"
   ],
-  "homepage": "https://github.com/RoslynMeow/MeowTileKit",
+  "homepage": "https://github.com/DavidMeow/MeowTileKit",
   "bugs": {
-    "url": "https://github.com/RoslynMeow/MeowTileKit/issues"
+    "url": "https://github.com/DavidMeow/MeowTileKit/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/RoslynMeow/MeowTileKit.git"
+    "url": "git+https://github.com/DavidMeow/MeowTileKit.git"
   },
   "publishConfig": {
     "access": "public"

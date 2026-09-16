@@ -1,7 +1,7 @@
 import type { TileSource } from './types.js';
 import { wgs84ToGcj02, wgs84ToBd09, isInChina } from './coord.js';
 import { latLngToTile } from './projection.js';
-import { defaultFormats } from './format.js';
+import { defaultFormats, extraFormats, parseCoord } from './format.js';
 import type { CoordFormat } from './format.js';
 import { computeDatums, iso6709, geoUri } from './datums.js';
 import { presets } from './presets.js';
@@ -12,6 +12,10 @@ export interface CoordPanelOptions {
   getZoom?: () => number;
   formats?: CoordFormat[];
   onSourceChange?: (id: string) => void;
+  /** 定位成功回调（WGS-84 坐标） */
+  onLocate?: (lat: number, lng: number) => void;
+  /** 定位输入框可选的格式列表 */
+  locateFormats?: CoordFormat[];
 }
 
 export class CoordPanel {
@@ -21,6 +25,9 @@ export class CoordPanel {
   private formats: CoordFormat[];
   private formatIdx = 0;
   private onSourceChange?: (id: string) => void;
+  private onLocate?: (lat: number, lng: number) => void;
+  private locateFormats: CoordFormat[];
+  private locateFmtKey = 'auto';
   private lastLat = 39.9042;
   private lastLng = 116.4074;
 
@@ -34,6 +41,8 @@ export class CoordPanel {
     this.getZoom = options.getZoom ?? (() => 12);
     this.formats = options.formats ?? defaultFormats;
     this.onSourceChange = options.onSourceChange;
+    this.onLocate = options.onLocate;
+    this.locateFormats = options.locateFormats ?? [...defaultFormats, ...extraFormats];
 
     CoordPanel.injectStyles();
     this.render();
@@ -57,6 +66,15 @@ export class CoordPanel {
 
   private render(): void {
     this.el.innerHTML = `
+      <div class="mkt-box"><div class="mkt-box-title">定位</div>
+        <div class="mkt-locate">
+          <div class="mkt-locate-row">
+            <select class="mkt-locate-fmt"></select>
+            <input class="mkt-locate-input" placeholder="粘贴或输入坐标…" />
+          </div>
+          <button class="mkt-locate-btn" type="button">定位到该点</button>
+        </div>
+      </div>
       <div class="mkt-box"><div class="mkt-box-title">坐标</div>
         <div class="mkt-p-coords"></div>
       </div>
@@ -66,9 +84,35 @@ export class CoordPanel {
       <div class="mkt-box"><div class="mkt-box-title">地图</div>
         <div class="mkt-p-minfo"></div>
       </div>`;
+    this.renderLocateOptions();
     this.renderCoords();
     this.renderFormatTabs();
     this.renderMapInfo();
+  }
+
+  private renderLocateOptions(): void {
+    const sel = this.el.querySelector('.mkt-locate-fmt') as HTMLSelectElement | null;
+    if (!sel) return;
+    sel.innerHTML = `<option value="auto">自动识别</option>` +
+      this.locateFormats.map(f => `<option value="${f.key}">${f.label}</option>`).join('');
+    sel.value = this.locateFmtKey;
+  }
+
+  private submitLocate(): void {
+    const input = this.el.querySelector('.mkt-locate-input') as HTMLInputElement | null;
+    const sel = this.el.querySelector('.mkt-locate-fmt') as HTMLSelectElement | null;
+    if (!input) return;
+    const val = input.value.trim();
+    if (!val) return;
+    this.locateFmtKey = sel?.value ?? 'auto';
+    const r = parseCoord(val, this.locateFmtKey === 'auto' ? undefined : this.locateFmtKey);
+    if (!r) {
+      input.classList.add('mkt-err');
+      setTimeout(() => input.classList.remove('mkt-err'), 1200);
+      return;
+    }
+    this.onLocate?.(r.lat, r.lng);
+    this.update(r.lat, r.lng);
   }
 
   private renderCoords(): void {
@@ -173,6 +217,13 @@ export class CoordPanel {
     this.el.querySelector('.mkt-p-srcsel')?.addEventListener('change', (e: any) => {
       if (this.onSourceChange) this.onSourceChange(e.target.value);
     });
+    this.el.querySelector('.mkt-locate-btn')?.addEventListener('click', () => this.submitLocate());
+    this.el.querySelector('.mkt-locate-input')?.addEventListener('keydown', (e: any) => {
+      if (e.key === 'Enter') { e.preventDefault(); this.submitLocate(); }
+    });
+    this.el.querySelector('.mkt-locate-fmt')?.addEventListener('change', (e: any) => {
+      this.locateFmtKey = e.target.value;
+    });
   }
 
   // ── styles ──
@@ -182,18 +233,42 @@ export class CoordPanel {
     const css = document.createElement('style');
     css.id = 'mkt-p-styles';
     css.textContent = `
-.mkt-p-row{display:flex;align-items:flex-start;gap:8px;padding:5px 0;font-family:"SF Mono",Menlo,monospace;cursor:pointer;transition:opacity .15s}
-.mkt-p-row:hover{opacity:.7}
-.mkt-p-lbl{color:#666;min-width:48px;font-size:13px;padding-top:1px;flex-shrink:0}
-.mkt-p-val{color:#d4d4d8;font-weight:500;font-size:13px;line-height:1.5}
-.mkt-p-dlbl{color:#555;min-width:52px;font-size:12px;font-weight:600;flex-shrink:0}
-.mkt-p-dval{color:#999;font-size:12px}
-.mkt-p-datums{font-size:13px;margin-top:2px}
-.mkt-p-datums summary{color:#555;cursor:pointer;user-select:none;padding:3px 0;font-size:12px}
-.mkt-p-datums summary:hover{color:#888}
-.mkt-p-datums summary::before{content:'▸';font-size:10px;display:inline-block;margin-right:4px;transition:transform .15s}
+.mkt-box{border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:12px 14px;margin-bottom:14px;background:rgba(255,255,255,.018);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC",sans-serif;transition:border-color .2s}
+.mkt-box:hover{border-color:rgba(255,255,255,.12)}
+.mkt-box-title{font-size:11px;color:#6a6a80;text-transform:uppercase;letter-spacing:1.2px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.mkt-box-title::before{content:'';width:3px;height:11px;border-radius:2px;background:linear-gradient(180deg,#8b7bff,#4a9eff)}
+.mkt-p-row{display:flex;align-items:flex-start;gap:8px;padding:6px 8px;margin:0 -8px;border-radius:7px;font-family:"SF Mono",ui-monospace,Menlo,monospace;cursor:pointer;transition:background .15s}
+.mkt-p-row:hover{background:rgba(255,255,255,.05)}
+.mkt-p-lbl{color:#6a6a80;min-width:48px;font-size:12px;padding-top:1px;flex-shrink:0}
+.mkt-p-val{color:#e2e2ea;font-weight:500;font-size:13px;line-height:1.5;word-break:break-all}
+.mkt-p-dlbl{color:#6a6a80;min-width:52px;font-size:12px;font-weight:600;flex-shrink:0}
+.mkt-p-dval{color:#9a9aad;font-size:12px}
+.mkt-p-datums{font-size:13px;margin-top:6px;border-top:1px dashed rgba(255,255,255,.08);padding-top:4px}
+.mkt-p-datums summary{color:#6a6a80;cursor:pointer;user-select:none;padding:5px 0;font-size:12px;transition:color .15s}
+.mkt-p-datums summary:hover{color:#a9a9bd}
+.mkt-p-datums summary::before{content:'▸';font-size:10px;display:inline-block;margin-right:6px;transition:transform .18s}
 .mkt-p-datums[open] summary::before{transform:rotate(90deg)}
-.mkt-p-ftabs{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.mkt-p-ftabs{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+.mkt-locate{display:flex;flex-direction:column;gap:8px}
+.mkt-locate-row{display:flex;gap:8px}
+.mkt-locate-fmt{background:rgba(255,255,255,.04);color:#c8c8d4;border:1px solid rgba(255,255,255,.09);border-radius:9px;padding:8px;font-size:12px;outline:none;cursor:pointer;max-width:120px;flex-shrink:0}
+.mkt-locate-fmt:hover,.mkt-locate-fmt:focus{border-color:rgba(74,158,255,.5)}
+.mkt-locate-input{flex:1;min-width:0;background:rgba(255,255,255,.04);color:#e6e6f0;border:1px solid rgba(255,255,255,.09);border-radius:9px;padding:9px 12px;font-size:13px;font-family:"SF Mono",ui-monospace,Menlo,monospace;outline:none;transition:border-color .15s,background .15s}
+.mkt-locate-input::placeholder{color:#5a5a70}
+.mkt-locate-input:focus{border-color:rgba(74,158,255,.65);background:rgba(74,158,255,.06)}
+.mkt-locate-input.mkt-err{border-color:rgba(255,90,90,.7);animation:mkt-shake .3s}
+@keyframes mkt-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.mkt-locate-btn{background:linear-gradient(120deg,#6c5ce7,#4a9eff);color:#fff;border:none;border-radius:9px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;transition:filter .15s,transform .1s}
+.mkt-locate-btn:hover{filter:brightness(1.12)}
+.mkt-locate-btn:active{transform:scale(.98)}
+.mkt-ftab{font-size:12px;color:#7a7a90;padding:6px 4px;cursor:pointer;border-radius:8px;transition:all .15s;user-select:none;text-align:center;border:1px solid transparent;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mkt-ftab:hover{color:#e2e2ea;background:rgba(255,255,255,.06)}
+.mkt-ftab-on{color:#8fc0ff;background:rgba(74,158,255,.14);border-color:rgba(74,158,255,.3);font-weight:600}
+.mkt-tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px}
+.mkt-tag-w{background:rgba(46,204,113,.14);color:#5fd68c}
+.mkt-tag-f{background:rgba(139,123,255,.16);color:#a99cff}
+.mkt-tag-g{background:rgba(240,173,78,.14);color:#f0ad4e}
+.mkt-tag-b{background:rgba(187,134,252,.16);color:#c49bff}
 `;
     document.head.appendChild(css);
   }
