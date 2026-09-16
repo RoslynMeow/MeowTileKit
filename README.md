@@ -10,7 +10,7 @@ npm install
 npm run build
 ```
 
-在线 Demo：[https://roslynmeow.github.io/MeowTileKit/](https://roslynmeow.github.io/MeowTileKit/)
+在线 Demo：[https://davidmeow.github.io/MeowTileKit/](https://davidmeow.github.io/MeowTileKit/)
 
 也可直接双击 `docs/index.html` 本地打开（需联网加载 Leaflet CDN）。
 
@@ -43,7 +43,7 @@ const { map, source, toLocal, toWgs84 } = createMap('map', {
   center: [39.9, 116.4],   // WGS-84 坐标
   zoom: 12,
   marker: true,            // 自动添加可拖拽标记
-  drawer: true,            // 右侧抽屉面板显示坐标详情
+  drawer: true,            // 浮动坐标面板（可拖动）
   maxBounds: [[15,70], [55,140]],  // 可选：限制可视区域
 })
 ```
@@ -51,9 +51,9 @@ const { map, source, toLocal, toWgs84 } = createMap('map', {
 - `toLocal(lat, lng)` — 将 WGS-84 转为当前图源的坐标系（用于放置标记）
 - `toWgs84(lat, lng)` — 转回 WGS-84
 
-双击打开侧边面板，分三个区域：**坐标**（WGS-84 / GCJ-02 / BD-09、ISO 6709、Geo URI、其他基准折叠）、
+双击地图打开浮动面板，分四个区域：**定位**（输入坐标跳转）、**坐标**（WGS-84 / GCJ-02 / BD-09、ISO 6709、Geo URI、其他基准折叠）、
 **测量标准**（格式按钮，每行 5 个）、**地图**（图源切换、缩放、瓦片坐标）。
-抽屉宽度自适应内容，最大不超过视口 50%。
+面板默认浮在地图右上角，拖动标题栏可移动位置，位置会被记住。
 
 可通过 `formats` 选项自定义格式列表：
 
@@ -72,6 +72,45 @@ createMap('map', {
   formats: [...defaultFormats, myFormat],
 })
 ```
+
+### 定位到坐标
+
+把任意测量标准（格式）的坐标解析回 WGS-84，并让地图跳转到该点。
+
+```ts
+import { createMap, parseCoord } from 'meow-tile-kit'
+
+const app = createMap('map', { source: 'amap' })
+
+// 方式一：直接调用地图实例的 locate()，自动处理坐标系统并落点
+app.locate('wx4g0bm')                 // Geohash
+app.locate('50N 449345 4417292')      // UTM
+app.locate('8PFRWC34+MX')             // OLC / Plus Code
+app.locate('39.9042, 116.4074')       // 十进制度
+app.locate('utm:50N 449345 4417292')  // format:value 前缀强制指定格式
+app.locate([39.9042, 116.4074])       // [lat, lng]
+
+// 方式二：只做解析，返回 { lat, lng } | null
+parseCoord('st4f0a')                  // 自动识别格式
+parseCoord('50N 449345 4417292', 'utm') // 指定格式
+```
+
+**参数形式**（无需拼字符串，适合程序内部调用）：
+
+```ts
+import { parseCoord, decodeCoord } from 'meow-tile-kit'
+
+parseCoord({ lat: 39.9042, lng: 116.4074 })                 // 直接给坐标
+parseCoord({ value: 'wx4g0bm' }, 'geohash')                 // 字符串参数
+decodeCoord('utm', { zone: 50, hemisphere: 'N', easting: 449345, northing: 4417292 })
+```
+
+抽屉面板的「定位」输入框支持同样的语法：自动识别，或从下拉框指定格式；
+也可粘贴 JSON 参数（如 `{"format":"utm","zone":50,"hemisphere":"N","easting":449345,"northing":4417292}`）。
+
+所有内置格式都实现了可逆的 `parse()`，即面板中显示的任何编码都能原样粘回去定位。
+网格类格式（IMW / Marsden / WMO / QDGC / C-squares / MGRS）本身精度有限，
+会定位到对应网格单元的中心。
 
 ### `createTileSource(type, options)`
 
@@ -125,18 +164,18 @@ import { presets } from 'meow-tile-kit'
 | `° '` | `39° 54.2520', 116° 24.4440'` | — |
 | `° ' "` | `39° 54' 15.120", 116° 24' 26.640"` | — |
 | Geohash | `wx4g0bm` | `geohash` |
-| Geohash-36 | `wk311w` | `geohash36f` |
-| GEOREF | `NKCL7922` | `georef` |
+| Geohash-36 | `st4f0a` | `geohash36f` |
+| GEOREF | `PTJL5424` | `georef` |
 | UTM | `50N 449345 4417292` | `utm` |
-| MGRS | `50N PE 49345 17292` | `mgrs` |
-| C-squares | `1:30:43:00:34:50` | `csquares` |
-| IMW | `N-K-50` | `imw` |
-| Marsden | `N12-20 (9°×6°)` | `marsden` |
-| QDGC | `N39E116_C` | `qdgc` |
-| WMO | `N04-30 (9°×6°)` | `wmo` |
-| NAC | `4F5R 6G7H` | `nac` |
-| OLC | `8P9C3W6X+6X` | `olc` |
-| Mapcode | `B2S8.4X5F` | `mapcode` |
+| MGRS | `50S AA 40123 98803` | `mgrs` |
+| C-squares | `1:0311:96:94:00:47` | `csquares` |
+| IMW | `NJ-50` | `imw` |
+| Marsden | `N12-30 (9°×6°)` | `marsden` |
+| QDGC | `N39E116_N` | `qdgc` |
+| WMO | `N12-30 (9°×6°)` | `wmo` |
+| NAC | `QJ9A TZT3` | `nac` |
+| OLC | `8PFRWC34+MX` | `olc` |
+| Mapcode | `TQ37.JS9K` | `mapcode` |
 
 ```ts
 import { geohash, utm, mgrs } from 'meow-tile-kit'
@@ -205,12 +244,17 @@ const panel = new CoordPanel({
     const src = createTileSource(id)
     // 切换图源逻辑
   },
+  onLocate: (lat, lng) => {
+    // 用户在面板里输入坐标并点击「定位」时触发（WGS-84）
+    const p = app.toLocal(lat, lng)
+    app.map.setView([p.lat, p.lng], 15)
+  },
 })
 
 app.map.on('click', (e) => panel.update(e.latlng.lat, e.latlng.lng))
 ```
 
-面板三栏（坐标 / 测量标准 / 地图），格式切换、其他基准折叠、图源切换、复制全部可用。
+面板四栏（定位 / 坐标 / 测量标准 / 地图），格式切换、其他基准折叠、图源切换、复制、坐标定位全部可用。
 默认响应式样式，用户可覆写 CSS。
 
 ### 自定义图源
