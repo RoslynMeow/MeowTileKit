@@ -23,8 +23,10 @@
     "build": "npm run build:types && npm run build:bundle",
     "build:types": "tsc",
     "build:bundle": "tsup src/index.ts --format esm,iife --dts --clean --outDir dist --global-name MeowTileKit",
-    "dev": "tsc --watch",
-    "start": "node server.js",
+    "build:demo": "node scripts/build-demo.mjs",
+    "dev": "npm run build && npm run build:demo && node server.js",
+    "dev:no-watch": "npm run build && npm run build:demo && node server.js --no-watch",
+    "start": "node server.js --no-watch",
     "prepublishOnly": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -39,13 +41,13 @@
     "gcj02",
     "wgs84"
   ],
-  "homepage": "https://github.com/DavidMeow/MeowTileKit",
+  "homepage": "https://github.com/RoslynMeow/MeowTileKit",
   "bugs": {
-    "url": "https://github.com/DavidMeow/MeowTileKit/issues"
+    "url": "https://github.com/RoslynMeow/MeowTileKit/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DavidMeow/MeowTileKit.git"
+    "url": "git+https://github.com/RoslynMeow/MeowTileKit.git"
   },
   "publishConfig": {
     "access": "public"

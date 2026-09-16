@@ -74,6 +74,13 @@ const AUTO_ORDER = [
 ];
 
 /**
+ * 纯字母数字的网格码在自动识别时要求至少含一个数字，
+ * 否则普通单词（如 "beijing"）会被误判为 Geohash-36 之类。
+ * 如果字符串确实是无数字的网格码，请显式指定格式。
+ */
+const REQUIRE_DIGIT = new Set(['geohash', 'geohash36', 'nac']);
+
+/**
  * Parse a coordinate string back to WGS-84.
  *
  * @param input  A coordinate string, `[lat, lng]`, `{ lat, lng }`, or a
@@ -90,7 +97,7 @@ export function parseCoord(input: CoordParam, format?: string): LatLng | null {
   if (Array.isArray(input)) return { lat: input[0], lng: input[1] };
   if (typeof input !== 'string') return null;
 
-  let str = input.trim();
+  const str = input.trim();
   if (!str) return null;
 
   // explicit "format:value" prefix
@@ -101,7 +108,9 @@ export function parseCoord(input: CoordParam, format?: string): LatLng | null {
 
   if (format) return decodeCoord(format, str);
 
+  const hasDigit = /\d/.test(str);
   for (const key of AUTO_ORDER) {
+    if (!hasDigit && REQUIRE_DIGIT.has(key)) continue;
     const dec = DECODERS[key];
     if (dec) {
       const r = dec(str);
