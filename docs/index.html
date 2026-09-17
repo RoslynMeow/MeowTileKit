@@ -4,9 +4,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MeowTileKit Demo</title>
+  <title>MeowTileKit · 多源地图瓦片</title>
+  <meta name="description" content="多源地图瓦片切换库，支持 WGS-84 / GCJ-02 / BD-09 坐标系统与多种坐标编码格式。">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
+    :root {
+      --brand: #6c5ce7;
+      --brand-2: #4a9eff;
+      --ink: #e8e8f0;
+      --muted: #8a8a9e;
+      --panel: rgba(16, 16, 28, .82);
+      --stroke: rgba(255, 255, 255, .09);
+    }
+
     *,
     *::before,
     *::after {
@@ -15,29 +25,1442 @@
       box-sizing: border-box
     }
 
+    html,
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
-      background: #0a0a12;
-      color: #d4d4d8;
-      height: 100vh
+      height: 100%
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", "PingFang SC", sans-serif;
+      background: #07070d;
+      color: var(--ink);
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased
     }
 
     #map {
+      position: absolute;
+      inset: 0;
       width: 100%;
-      height: 100%
+      height: 100%;
+      background: #0b0b14
+    }
+
+    .leaflet-control-zoom a {
+      background: var(--panel) !important;
+      color: var(--ink) !important;
+      border-color: var(--stroke) !important;
+      backdrop-filter: blur(10px)
+    }
+
+    .leaflet-control-zoom a:hover {
+      background: rgba(74, 158, 255, .18) !important
+    }
+
+    .leaflet-control-attribution {
+      background: rgba(10, 10, 18, .7) !important;
+      color: var(--muted) !important;
+      backdrop-filter: blur(6px)
+    }
+
+    .leaflet-control-attribution a {
+      color: var(--brand-2) !important
+    }
+
+    /* ── search ── */
+    .search-wrap {
+      position: fixed;
+      left: 50%;
+      bottom: 26px;
+      transform: translateX(-50%);
+      z-index: 600;
+      width: min(520px, calc(100vw - 32px));
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      animation: rise .6s cubic-bezier(.2, .8, .2, 1) both
+    }
+
+    .search {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 8px 8px 14px;
+      border-radius: 16px;
+      background: var(--panel);
+      border: 1px solid var(--stroke);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, .5);
+      transition: border-color .18s, box-shadow .18s
+    }
+
+    .search:focus-within {
+      border-color: rgba(74, 158, 255, .5);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, .5), 0 0 0 3px rgba(74, 158, 255, .15)
+    }
+
+    .search.err {
+      border-color: rgba(255, 90, 90, .65);
+      animation: shake .3s
+    }
+
+    .search-ic {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      color: var(--muted)
+    }
+
+    .search-input {
+      flex: 1;
+      min-width: 0;
+      border: none;
+      outline: none;
+      background: none;
+      color: var(--ink);
+      font-size: 14px;
+      font-family: inherit
+    }
+
+    .search-input::placeholder {
+      color: #5a5a70
+    }
+
+    .search-help,
+    .search-go {
+      flex-shrink: 0;
+      border-radius: 10px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all .16s
+    }
+
+    .search-help {
+      width: 30px;
+      height: 30px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #9a9aad;
+      background: rgba(255, 255, 255, .05);
+      border: 1px solid var(--stroke)
+    }
+
+    .search-help:hover,
+    .search-help.on {
+      color: #fff;
+      border-color: rgba(74, 158, 255, .5);
+      background: rgba(74, 158, 255, .16)
+    }
+
+    .search-scope {
+      flex-shrink: 0;
+      height: 30px;
+      padding: 0 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
+      white-space: nowrap;
+      color: #9a9aad;
+      background: rgba(255, 255, 255, .05);
+      border: 1px solid var(--stroke);
+      transition: all .16s
+    }
+
+    .search-scope:hover {
+      color: #fff;
+      border-color: rgba(74, 158, 255, .5);
+      background: rgba(74, 158, 255, .16)
+    }
+
+    .search-scope.on {
+      color: #fff;
+      background: linear-gradient(120deg, var(--brand), var(--brand-2));
+      border-color: transparent
+    }
+
+    /* ── leaflet top-left controls ── */
+    .mkt-ctl-group {
+      border-radius: 12px;
+      overflow: hidden;
+      background: rgba(16, 16, 28, .82);
+      border: 1px solid rgba(255, 255, 255, .09);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, .4)
+    }
+
+    .mkt-ctl-group button {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      cursor: pointer;
+      color: #d4d4d8;
+      background: none;
+      border: none;
+      font-family: inherit;
+      font-size: 19px;
+      line-height: 1;
+      transition: background .16s, color .16s
+    }
+
+    .mkt-ctl-group button+button {
+      border-top: 1px solid rgba(255, 255, 255, .08)
+    }
+
+    .mkt-ctl-group button:hover {
+      color: #fff;
+      background: rgba(74, 158, 255, .22)
+    }
+
+    .mkt-ctl-group button:active {
+      background: rgba(74, 158, 255, .34)
+    }
+
+    .mkt-info-ctl {
+      background: rgba(16, 16, 28, .82);
+      color: #d4d4d8;
+      border-radius: 12px;
+      padding: 6px 10px;
+      font-size: 11px;
+      line-height: 1.6;
+      backdrop-filter: blur(10px);
+      font-family: "SF Mono", ui-monospace, Menlo, monospace;
+      white-space: nowrap
+    }
+
+    .mkt-info-ctl .mkt-tile-table {
+      border-collapse: collapse;
+      margin-top: 3px;
+      font-variant-numeric: tabular-nums
+    }
+
+    .mkt-info-ctl .mkt-tile-table td {
+      padding: 0;
+      line-height: 1.5
+    }
+
+    .mkt-info-ctl .mkt-tile-table .k {
+      color: #6a6a80;
+      padding-right: 10px;
+      text-align: right
+    }
+
+    .mkt-info-ctl .mkt-tile-table .v {
+      color: #d4d4d8;
+      text-align: right
+    }
+
+    /* ── search result extra（注入到坐标面板里）── */
+    .mkt-result-src {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 7px;
+      border-radius: 999px;
+      background: rgba(74, 158, 255, .16);
+      color: #8fc0ff;
+      margin-bottom: 6px
+    }
+
+    .mkt-result-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px
+    }
+
+    .mkt-result-actions button {
+      flex: 1;
+      padding: 8px 6px;
+      border-radius: 9px;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      color: #cdcdda;
+      background: rgba(255, 255, 255, .05);
+      border: 1px solid rgba(255, 255, 255, .09);
+      transition: all .16s
+    }
+
+    .mkt-result-actions button:hover {
+      color: #fff;
+      background: rgba(74, 158, 255, .16);
+      border-color: rgba(74, 158, 255, .4)
+    }
+
+    .search-go {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+      background: linear-gradient(120deg, var(--brand), var(--brand-2));
+      border: none
+    }
+
+    .search-go:hover {
+      filter: brightness(1.12)
+    }
+
+    .search-go:active {
+      transform: scale(.97)
+    }
+
+    .search-go:disabled {
+      opacity: .6;
+      cursor: default
+    }
+
+    .search-help-panel {
+      border-radius: 14px;
+      background: var(--panel);
+      border: 1px solid var(--stroke);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, .5);
+      font-size: 12px;
+      color: #b9b9cc;
+      line-height: 2;
+      padding: 12px 16px
+    }
+
+    .search-help-panel[hidden] {
+      display: none
+    }
+
+    .search-help-panel b {
+      display: block;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #6a6a80;
+      margin-bottom: 4px
+    }
+
+    .search-help-panel code,
+    .search-msg code {
+      color: #8b9dd4;
+      font-family: "SF Mono", ui-monospace, Menlo, monospace;
+      background: rgba(255, 255, 255, .05);
+      padding: 1px 5px;
+      border-radius: 4px;
+      white-space: nowrap
+    }
+
+    /* 顶部弹出的消息，10s 后渐隐 */
+    .search-msg {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      z-index: 880;
+      max-width: min(560px, calc(100vw - 32px));
+      padding: 10px 20px;
+      border-radius: 12px;
+      background: var(--panel);
+      border: 1px solid var(--stroke);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, .5);
+      font-size: 12.5px;
+      color: #cdcdda;
+      line-height: 1.7;
+      text-align: center;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateX(-50%) translateY(-12px);
+      transition: opacity .45s ease, transform .45s ease
+    }
+
+    .search-msg.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0)
+    }
+
+    .search-msg.warn {
+      color: #ff9a9a;
+      border-color: rgba(255, 90, 90, .45)
+    }
+
+    .search-results {
+      border-radius: 14px;
+      background: var(--panel);
+      border: 1px solid var(--stroke);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, .5);
+      overflow-y: auto;
+      max-height: min(46vh, 360px)
+    }
+
+    .search-results[hidden] {
+      display: none
+    }
+
+    .search-result {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 10px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(255, 255, 255, .05);
+      transition: background .14s
+    }
+
+    .search-result:last-child {
+      border-bottom: none
+    }
+
+    .search-result:hover,
+    .search-result.active {
+      background: rgba(74, 158, 255, .14)
+    }
+
+    .search-result-idx {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, .06);
+      color: #9a9aad;
+      font-size: 11px;
+      display: grid;
+      place-items: center;
+      margin-top: 1px
+    }
+
+    .search-result.active .search-result-idx {
+      background: rgba(74, 158, 255, .3);
+      color: #cfe4ff
+    }
+
+    .search-result-body {
+      min-width: 0
+    }
+
+    .search-result-name {
+      font-size: 13px;
+      color: var(--ink);
+      line-height: 1.5;
+      word-break: break-word
+    }
+
+    .search-result-meta {
+      font-size: 11px;
+      color: #6a6a80;
+      font-family: "SF Mono", ui-monospace, Menlo, monospace;
+      margin-top: 2px
+    }
+
+    /* ── settings ── */
+    .settings-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 800;
+      display: grid;
+      place-items: center;
+      background: rgba(4, 4, 9, .6);
+      backdrop-filter: blur(4px);
+      padding: 20px
+    }
+
+    .settings-overlay[hidden] {
+      display: none
+    }
+
+    .settings {
+      width: min(420px, 100%);
+      max-height: calc(100vh - 40px);
+      display: flex;
+      flex-direction: column;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(18, 18, 30, .99), rgba(12, 12, 21, .99));
+      border: 1px solid var(--stroke);
+      box-shadow: 0 30px 70px rgba(0, 0, 0, .6);
+      overflow: hidden;
+      animation: rise-sm .24s cubic-bezier(.2, .8, .2, 1) both
+    }
+
+    .settings-hd {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, .07)
+    }
+
+    .settings-hd h3 {
+      font-size: 15px;
+      font-weight: 700;
+      background: linear-gradient(120deg, #a99cff, var(--brand-2) 60%, var(--brand-3));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent
+    }
+
+    .settings-close {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .04);
+      border: 1px solid var(--stroke);
+      color: #8a8a99;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer
+    }
+
+    .settings-close:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, .1)
+    }
+
+    .settings-body {
+      padding: 16px 18px 18px;
+      overflow-y: auto
+    }
+
+    .settings-field {
+      display: block;
+      margin-bottom: 14px
+    }
+
+    .settings-field.off {
+      display: none
+    }
+
+    .settings-label {
+      display: block;
+      font-size: 12px;
+      color: #8a8a9e;
+      margin-bottom: 6px
+    }
+
+    .settings-sec-title {
+      font-size: 11px;
+      color: #6a6a80;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 700;
+      margin: 4px 0 10px
+    }
+
+    .settings-prov {
+      border: 1px solid rgba(255, 255, 255, .07);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      background: rgba(255, 255, 255, .02)
+    }
+
+    .settings-prov.off {
+      display: none
+    }
+
+    .settings-prov-title {
+      font-size: 12px;
+      color: #b9b9cc;
+      font-weight: 600;
+      margin-bottom: 8px
+    }
+
+    .settings-inline {
+      display: flex;
+      gap: 8px
+    }
+
+    .settings-inline input {
+      flex: 1;
+      width: auto;
+      min-width: 0
+    }
+
+    .settings-verify {
+      flex-shrink: 0;
+      height: 38px;
+      padding: 0 14px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      color: #cfe4ff;
+      background: rgba(74, 158, 255, .16);
+      border: 1px solid rgba(74, 158, 255, .35);
+      transition: all .16s
+    }
+
+    .settings-verify:hover {
+      background: rgba(74, 158, 255, .28)
+    }
+
+    .settings-verify:disabled {
+      opacity: .55;
+      cursor: default
+    }
+
+    .verify-status {
+      font-size: 11.5px;
+      margin-top: 6px;
+      min-height: 16px;
+      color: #6a6a80
+    }
+
+    .verify-status.ok {
+      color: #5fd68c
+    }
+
+    .verify-status.bad {
+      color: #ff9a9a
+    }
+
+    .settings-body select,
+    .settings-body input {
+      width: 100%;
+      height: 38px;
+      padding: 0 12px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, .04);
+      border: 1px solid var(--stroke);
+      color: #e6e6f0;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      color-scheme: dark
+    }
+
+    .settings-body input {
+      font-family: "SF Mono", ui-monospace, Menlo, monospace
+    }
+
+    .settings-body select option {
+      background: #12121e;
+      color: #e6e6f0
+    }
+
+    .settings-body select:focus,
+    .settings-body input:focus {
+      border-color: rgba(74, 158, 255, .6);
+      background: rgba(74, 158, 255, .06)
+    }
+
+    .settings-hint {
+      font-size: 11.5px;
+      color: #6a6a80;
+      line-height: 1.7;
+      margin-bottom: 16px
+    }
+
+    .settings-actions {
+      display: flex;
+      gap: 10px
+    }
+
+    .settings-btn {
+      flex: 1;
+      height: 40px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all .16s
+    }
+
+    .settings-btn.ghost {
+      color: #cdcdda;
+      background: rgba(255, 255, 255, .05);
+      border: 1px solid var(--stroke)
+    }
+
+    .settings-btn.ghost:hover {
+      background: rgba(255, 255, 255, .1)
+    }
+
+    .settings-btn.primary {
+      color: #fff;
+      background: linear-gradient(120deg, var(--brand), var(--brand-2));
+      border: none
+    }
+
+    .settings-btn.primary:hover {
+      filter: brightness(1.12)
+    }
+
+    @keyframes rise-sm {
+      from {
+        opacity: 0;
+        transform: translateY(10px) scale(.98)
+      }
+
+      to {
+        opacity: 1;
+        transform: none
+      }
+    }
+
+    /* ── loading ── */
+    #loading {
+      position: fixed;
+      inset: 0;
+      z-index: 900;
+      display: grid;
+      place-items: center;
+      background: #07070d;
+      transition: opacity .5s ease
+    }
+
+    #loading.hide {
+      opacity: 0;
+      pointer-events: none
+    }
+
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 3px solid rgba(255, 255, 255, .1);
+      border-top-color: var(--brand-2);
+      animation: spin .8s linear infinite
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(14px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0)
+      }
+    }
+
+    @keyframes shake {
+
+      0%,
+      100% {
+        transform: translateX(0)
+      }
+
+      25% {
+        transform: translateX(-4px)
+      }
+
+      75% {
+        transform: translateX(4px)
+      }
     }
   </style>
 </head>
 
 <body>
   <div id="map"></div>
+
+  <div class="search-wrap">
+    <form class="search" id="searchForm" autocomplete="off">
+      <svg class="search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7" />
+        <path d="m21 21-4.3-4.3" />
+      </svg>
+      <input class="search-input" id="searchInput" placeholder="搜索坐标或地点，例如 天安门 / wx4g0bm / 39.9,116.4" />
+      <button class="search-scope" id="searchScope" type="button" title="点击切换为「仅搜索当前视野」">视野</button>
+      <button class="search-help" id="searchHelpBtn" type="button" title="支持的格式">?</button>
+      <button class="search-go" id="searchGo" type="submit">搜索</button>
+    </form>
+
+    <div class="search-results" id="searchResults" hidden></div>
+
+    <div class="search-help-panel" id="searchHelp" hidden>
+      <b>支持的坐标格式（自动识别）</b>
+      <div><code>39.9,116.4</code> 十进制度 · <code>39° 54' 15.1"</code> 度分秒</div>
+      <div><code>wx4g0bm</code> Geohash · <code>8PFRWC34+MX</code> OLC</div>
+      <div><code>50N 449345 4417292</code> UTM · <code>50S AA 40123 98803</code> MGRS</div>
+      <div><code>geo:39.9,116.4</code> Geo URI · <code>+39.9+116.4/</code> ISO 6709</div>
+      <div>参数形式 <code>{"format":"utm","zone":50,"hemisphere":"N","easting":449345,"northing":4417292}</code></div>
+      <div style="margin-top:4px;color:#6a6a80">地点搜索默认全局；点右侧「视野」按钮可限定在当前地图视野内。坐标不受视野限制。</div>
+    </div>
+  </div>
+
+  <div class="search-msg" id="searchMsg" hidden></div>
+
+  <div class="settings-overlay" id="settingsOverlay" hidden>
+    <div class="settings" role="dialog" aria-modal="true" aria-label="设置">
+      <div class="settings-hd">
+        <h3>设置</h3>
+        <button class="settings-close" id="settingsClose" type="button" title="关闭">&times;</button>
+      </div>
+      <div class="settings-body">
+        <div class="settings-sec-title">地理编码引擎</div>
+        <label class="settings-field">
+          <select id="setProvider">
+            <option value="nominatim">OSM · Nominatim（免 Key，默认）</option>
+            <option value="amap">高德 · AMap</option>
+            <option value="tianditu">天地图</option>
+            <option value="custom">自建 Nominatim</option>
+          </select>
+        </label>
+
+        <div class="settings-prov" data-provider="amap">
+          <div class="settings-prov-title">高德 · AMap</div>
+          <div class="settings-inline">
+            <input id="setAmapKey" type="text" placeholder="Web 服务 Key" autocomplete="off" />
+            <button class="settings-verify" id="verifyAmap" type="button">验证</button>
+          </div>
+          <div class="verify-status" id="verifyAmapStatus"></div>
+        </div>
+
+        <div class="settings-prov" data-provider="tianditu">
+          <div class="settings-prov-title">天地图</div>
+          <div class="settings-inline">
+            <input id="setTdtKey" type="text" placeholder="tk" autocomplete="off" />
+            <button class="settings-verify" id="verifyTdt" type="button">验证</button>
+          </div>
+          <div class="verify-status" id="verifyTdtStatus"></div>
+        </div>
+
+        <div class="settings-prov" data-provider="custom">
+          <div class="settings-prov-title">自建 Nominatim</div>
+          <div class="settings-inline">
+            <input id="setCustomUrl" type="text" placeholder="https://your-nominatim.example.com" autocomplete="off" />
+            <button class="settings-verify" id="verifyCustom" type="button">验证</button>
+          </div>
+          <div class="verify-status" id="verifyCustomStatus"></div>
+        </div>
+
+        <div class="settings-sec-title">地图图源</div>
+        <label class="settings-field">
+          <select id="setSource"></select>
+        </label>
+
+        <p class="settings-hint">Key / URL 只保存在本浏览器的 localStorage，不会上传；引擎需“验证”通过后才可切换，否则使用 OSM。</p>
+
+        <div class="settings-actions">
+          <button class="settings-btn ghost" id="settingsReset" type="button">恢复默认</button>
+          <button class="settings-btn primary" id="settingsSave" type="button">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading"><div class="spinner"></div></div>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/meow-tile-kit"></script>
   <script>
     (function () {
       'use strict'
-      const { createMap } = window.MeowTileKit
-      const app = createMap('map', { source: 'amap' })
+      const loading = document.getElementById('loading')
+      const hide = () => loading.classList.add('hide')
+
+      if (!window.MeowTileKit) {
+        loading.innerHTML = '<div style="color:#ff9a9a;font-size:14px;text-align:center;line-height:1.9;padding:0 24px">MeowTileKit 加载失败，请检查网络（本页使用 unpkg 上的已发布版本）</div>'
+        return
+      }
+
+      const app = window.MeowTileKit.createMap('map', { source: 'amap', zoomControl: false })
+      setTimeout(hide, 400)
+
+      const M = window.MeowTileKit
+      const L = window.L
+      const overlay = L.layerGroup().addTo(app.map)
+
+      const form = document.getElementById('searchForm')
+      const input = document.getElementById('searchInput')
+      const goBtn = document.getElementById('searchGo')
+      const helpBtn = document.getElementById('searchHelpBtn')
+      const helpPanel = document.getElementById('searchHelp')
+      const scopeBtn = document.getElementById('searchScope')
+      const settingsOverlay = document.getElementById('settingsOverlay')
+      const setProvider = document.getElementById('setProvider')
+      const setAmapKey = document.getElementById('setAmapKey')
+      const setTdtKey = document.getElementById('setTdtKey')
+      const setCustomUrl = document.getElementById('setCustomUrl')
+      const setSource = document.getElementById('setSource')
+      const msg = document.getElementById('searchMsg')
+      const resultsEl = document.getElementById('searchResults')
+      const searchWrap = document.querySelector('.search-wrap')
+
+      let currentResults = []
+      let activeIdx = -1
+      let scopeInView = false
+      let currentResult = null
+      let msgTimer = null
+
+      const POLY_STYLE = { color: '#4a9eff', weight: 2, opacity: .95, fillColor: '#4a9eff', fillOpacity: .12 }
+      const BBOX_STYLE = { color: '#6c5ce7', weight: 1.5, dashArray: '5 4', fillColor: '#6c5ce7', fillOpacity: .06 }
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+      }
+
+      // ── 设置（引擎 / Key / 自建地址，存 localStorage）──
+      const SETTINGS_KEY = 'mkt-search-settings'
+      const DEFAULT_SETTINGS = { provider: 'nominatim', amapKey: '', tdtKey: '', customUrl: '', source: '', verified: {} }
+
+      function loadSettings() {
+        const s = Object.assign({}, DEFAULT_SETTINGS)
+        try {
+          const raw = localStorage.getItem(SETTINGS_KEY)
+          if (raw) Object.assign(s, JSON.parse(raw))
+          // 兼容早期分散存储
+          if (!s.amapKey) s.amapKey = localStorage.getItem('mkt-amap-key') || ''
+          if (!raw) { const p = localStorage.getItem('mkt-provider'); if (p) s.provider = p }
+        } catch (e) { /* ignore */ }
+        s.verified = Object.assign({}, s.verified)
+        if (s.provider !== 'nominatim' && !s.verified[s.provider]) s.provider = 'nominatim'
+        return s
+      }
+
+      function saveSettings(s) {
+        try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)) } catch (e) { /* ignore */ }
+      }
+
+      let settings = loadSettings()
+
+      // ── 地理编码引擎（统一输出 WGS-84 结果）──
+      function normalizeNominatim(r) {
+        return {
+          name: r.display_name || '未命名',
+          address: r.display_name || '',
+          type: r.type,
+          tel: (r.extratags && r.extratags.phone) || '',
+          lat: parseFloat(r.lat),
+          lng: parseFloat(r.lon),
+          bbox: Array.isArray(r.boundingbox) ? r.boundingbox.map(Number) : null,
+          geometry: r.geojson || null,
+          source: 'OSM',
+        }
+      }
+
+      const PROVIDERS = {
+        nominatim: {
+          label: 'OSM',
+          needsKey: false,
+          async search(q, ctx) {
+            let url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&polygon_geojson=1&extratags=1&q=' + encodeURIComponent(q)
+            if (ctx.bounded && ctx.viewbox) url += '&bounded=1&viewbox=' + ctx.viewbox
+            const res = await fetch(url, { headers: { Accept: 'application/json' } })
+            if (!res.ok) throw new Error('HTTP ' + res.status)
+            const arr = await res.json()
+            return (arr || []).map(normalizeNominatim).filter((r) => isFinite(r.lat) && isFinite(r.lng))
+          },
+        },
+        amap: {
+          label: '高德',
+          needsKey: true,
+          async search(q, ctx) {
+            const key = settings.amapKey
+            if (!key) throw new Error('NO_KEY')
+            let url = 'https://restapi.amap.com/v3/place/text?key=' + encodeURIComponent(key) + '&extensions=all&keywords=' + encodeURIComponent(q)
+            if (ctx.bounded && ctx.center) {
+              url += '&location=' + ctx.center.lngG.toFixed(6) + ',' + ctx.center.latG.toFixed(6) + '&radius=' + Math.round(ctx.radius)
+            }
+            const res = await fetch(url)
+            const data = await res.json()
+            if (!data || data.status !== '1') throw new Error((data && data.info) || 'AMap error')
+            return (data.pois || []).map((p) => {
+              const c = String(p.location || '').split(',').map(Number)
+              const w = M.gcj02ToWgs84(c[1], c[0])
+              return {
+                name: p.name || '未命名',
+                address: p.address || [p.pname, p.cityname, p.adname].filter(Boolean).join(' '),
+                type: p.type,
+                tel: p.tel && p.tel !== '[]' ? p.tel : '',
+                lat: w.lat,
+                lng: w.lng,
+                bbox: null,
+                geometry: null,
+                source: '高德',
+              }
+            }).filter((r) => isFinite(r.lat) && isFinite(r.lng))
+          },
+        },
+        tianditu: {
+          label: '天地图',
+          needsKey: true,
+          async search(q, ctx) {
+            const key = settings.tdtKey
+            if (!key) throw new Error('NO_KEY')
+            const post = { keyWord: q, level: 12, queryType: 1, start: 0, count: 20 }
+            if (ctx.bounded && ctx.viewbox) post.mapBound = ctx.viewbox
+            const url = 'https://api.tianditu.gov.cn/v2/search?type=query&tk=' + encodeURIComponent(key) + '&postStr=' + encodeURIComponent(JSON.stringify(post))
+            const res = await fetch(url)
+            const data = await res.json()
+            const pois = (data && (data.pois || data.poi)) || []
+            return pois.map((p) => ({
+              name: p.name || '未命名',
+              address: p.address || [p.pname, p.city, p.county].filter(Boolean).join(''),
+              type: p.poiType || p.type || '',
+              tel: p.phone || p.tel || '',
+              lat: parseFloat(p.lat),
+              lng: parseFloat(p.lon),
+              bbox: null,
+              geometry: null,
+              source: '天地图',
+            })).filter((r) => isFinite(r.lat) && isFinite(r.lng))
+          },
+        },
+        custom: {
+          label: '自建',
+          needsKey: false,
+          async search(q, ctx) {
+            const base = (settings.customUrl || '').replace(/\/+$/, '')
+            if (!base) throw new Error('NO_URL')
+            let url = base + '/search?format=jsonv2&addressdetails=1&polygon_geojson=1&q=' + encodeURIComponent(q)
+            if (ctx.bounded && ctx.viewbox) url += '&bounded=1&viewbox=' + ctx.viewbox
+            const res = await fetch(url, { headers: { Accept: 'application/json' } })
+            if (!res.ok) throw new Error('HTTP ' + res.status)
+            const arr = await res.json()
+            return (arr || []).map(normalizeNominatim).filter((r) => isFinite(r.lat) && isFinite(r.lng))
+          },
+        },
+      }
+
+      // 当前地图视野 → 统一 WGS-84 上下文（供各 provider 使用）
+      function searchContext() {
+        const b = app.map.getBounds()
+        const sw = app.toWgs84(b.getSouth(), b.getWest())
+        const ne = app.toWgs84(b.getNorth(), b.getEast())
+        const centerW = { lat: (sw.lat + ne.lat) / 2, lng: (sw.lng + ne.lng) / 2 }
+        const centerG = M.wgs84ToGcj02(centerW.lat, centerW.lng)
+        const dLat = Math.abs(ne.lat - sw.lat) / 2
+        const dLng = Math.abs(ne.lng - sw.lng) / 2
+        const radius = Math.max(dLat, dLng * Math.cos(centerW.lat * Math.PI / 180)) * 111320
+        return {
+          bounded: scopeInView,
+          viewbox: [sw.lng, sw.lat, ne.lng, ne.lat].map((n) => n.toFixed(6)).join(','),
+          center: { lat: centerW.lat, lng: centerW.lng, latG: centerG.lat, lngG: centerG.lng },
+          radius: Math.max(500, Math.min(50000, radius)),
+        }
+      }
+
+      function showMsg(text, warn) {
+        msg.innerHTML = text
+        msg.classList.toggle('warn', !!warn)
+        msg.hidden = false
+        requestAnimationFrame(() => msg.classList.add('show'))
+        if (msgTimer) clearTimeout(msgTimer)
+        msgTimer = setTimeout(hideMsg, 10000)
+      }
+
+      function hideMsg() {
+        if (msgTimer) { clearTimeout(msgTimer); msgTimer = null }
+        msg.classList.remove('show')
+        setTimeout(() => { if (!msg.classList.contains('show')) msg.hidden = true }, 500)
+      }
+
+      function clearMsg() {
+        if (msgTimer) { clearTimeout(msgTimer); msgTimer = null }
+        msg.classList.remove('show')
+        msg.hidden = true
+        form.classList.remove('err')
+      }
+
+      function hideResults() {
+        resultsEl.hidden = true
+        resultsEl.innerHTML = ''
+        currentResults = []
+        activeIdx = -1
+      }
+
+      function setActive(i) {
+        const items = resultsEl.querySelectorAll('.search-result')
+        if (!items.length) return
+        activeIdx = (i + items.length) % items.length
+        items.forEach((el, idx) => el.classList.toggle('active', idx === activeIdx))
+        items[activeIdx].scrollIntoView({ block: 'nearest' })
+      }
+
+      function goToResult(r) {
+        const layer = drawResult(r)
+        if (layer) {
+          app.locate([r.lat, r.lng])
+          const b = layer.getBounds()
+          if (b.isValid()) app.map.fitBounds(b, { padding: [40, 40], maxZoom: 17 })
+        } else {
+          app.locate([r.lat, r.lng], undefined, 14)
+        }
+        currentResult = r
+        app.setPanelExtra(resultExtraHTML(r))
+        app.openPanel()
+        showMsg('已定位到：' + escapeHtml(r.name))
+        hideResults()
+      }
+
+      // ── 在当前地图上绘制（几何/bounding box，均从 WGS-84 转到当前图源坐标系）──
+      function toLocalLatLngs(ring) {
+        return ring.map((c) => { const p = app.toLocal(c[1], c[0]); return [p.lat, p.lng] })
+      }
+
+      function drawResult(r) {
+        overlay.clearLayers()
+        const layers = []
+        const g = r.geometry
+        try {
+          if (g && g.type === 'Polygon') {
+            g.coordinates.forEach((ring) => layers.push(L.polygon(toLocalLatLngs(ring), POLY_STYLE)))
+          } else if (g && g.type === 'MultiPolygon') {
+            g.coordinates.forEach((poly) => poly.forEach((ring) => layers.push(L.polygon(toLocalLatLngs(ring), POLY_STYLE))))
+          } else if (g && g.type === 'LineString') {
+            layers.push(L.polyline(toLocalLatLngs(g.coordinates), POLY_STYLE))
+          } else if (g && g.type === 'MultiLineString') {
+            g.coordinates.forEach((line) => layers.push(L.polyline(toLocalLatLngs(line), POLY_STYLE)))
+          }
+        } catch (e) { /* 忽略异常几何 */ }
+        if (layers.length) {
+          layers.forEach((l) => overlay.addLayer(l))
+          return L.featureGroup(layers)
+        }
+        if (Array.isArray(r.bbox) && r.bbox.length === 4) {
+          const sw = app.toLocal(r.bbox[0], r.bbox[2])
+          const ne = app.toLocal(r.bbox[1], r.bbox[3])
+          const rect = L.rectangle([[sw.lat, sw.lng], [ne.lat, ne.lng]], BBOX_STYLE)
+          overlay.addLayer(rect)
+          return L.featureGroup([rect])
+        }
+        return null
+      }
+
+      // ── 结果附加信息（注入坐标面板，只显示面板里没有的字段）──
+      function resultExtraHTML(r) {
+        const rows = []
+        rows.push('<div class="mkt-row"><span class="mkt-lbl">名称</span><span class="mkt-val">' + escapeHtml(r.name || '') + '</span></div>')
+        if (r.address && r.address !== r.name) rows.push('<div class="mkt-row"><span class="mkt-lbl">地址</span><span class="mkt-val">' + escapeHtml(r.address) + '</span></div>')
+        if (r.type) rows.push('<div class="mkt-row"><span class="mkt-lbl">类型</span><span class="mkt-val">' + escapeHtml(r.type) + '</span></div>')
+        if (r.tel) rows.push('<div class="mkt-row"><span class="mkt-lbl">电话</span><span class="mkt-val">' + escapeHtml(r.tel) + '</span></div>')
+        if (Array.isArray(r.bbox) && r.bbox.length === 4) {
+          rows.push('<div class="mkt-row"><span class="mkt-lbl">范围</span><span class="mkt-val">' + r.bbox.map((n) => n.toFixed(4)).join(', ') + '</span></div>')
+        }
+        return '<div class="mkt-box"><div class="mkt-box-title">搜索结果</div>' +
+          '<span class="mkt-result-src">' + escapeHtml(r.source || '') + '</span>' +
+          rows.join('') +
+          '<div class="mkt-result-actions">' +
+          '<button type="button" data-result-act="fit">居中</button>' +
+          '<button type="button" data-result-act="copy">复制坐标</button>' +
+          '<button type="button" data-result-act="clear">清除范围</button>' +
+          '</div></div>'
+      }
+
+      function fitResult() {
+        if (!currentResult) return
+        const layers = overlay.getLayers()
+        if (layers.length) {
+          const fg = L.featureGroup(layers)
+          const b = fg.getBounds()
+          if (b.isValid()) { app.map.fitBounds(b, { padding: [40, 40], maxZoom: 17 }); return }
+        }
+        app.locate([currentResult.lat, currentResult.lng], undefined, 14)
+      }
+
+      function renderResults(list) {
+        currentResults = list
+        activeIdx = -1
+        resultsEl.innerHTML = list.map((r, i) => {
+          const addr = r.address && r.address !== r.name ? ' · ' + escapeHtml(String(r.address).slice(0, 64)) : ''
+          return '<div class="search-result" data-idx="' + i + '">' +
+            '<span class="search-result-idx">' + (i + 1) + '</span>' +
+            '<span class="search-result-body">' +
+            '<span class="search-result-name">' + escapeHtml(r.name) + '</span>' +
+            '<span class="search-result-meta">' + escapeHtml(r.source || '') + ' · ' + r.lat.toFixed(5) + ', ' + r.lng.toFixed(5) + addr + '</span>' +
+            '</span>' +
+            '</div>'
+        }).join('')
+        resultsEl.hidden = false
+      }
+
+      resultsEl.addEventListener('click', (e) => {
+        const item = e.target.closest('.search-result')
+        if (!item) return
+        const r = currentResults[+item.dataset.idx]
+        if (r) goToResult(r)
+      })
+
+      async function search(q) {
+        q = q.trim()
+        if (!q) return
+        clearMsg()
+        hideResults()
+
+        // 1) 坐标：含数字才尝试本地解析（避免把 "beijing" 之类的词当网格码）
+        if (/\d/.test(q)) {
+          const coord = M.parseCoord(q)
+          if (coord) {
+            overlay.clearLayers()
+            app.locate(q, undefined, 14)
+            currentResult = { name: q, source: '坐标', lat: coord.lat, lng: coord.lng }
+            app.setPanelExtra('')
+            app.openPanel()
+            showMsg('已定位坐标：' + coord.lat.toFixed(6) + ', ' + coord.lng.toFixed(6))
+            return
+          }
+        }
+
+        // 2) 地点名称（按设置里所选引擎联网地理编码）
+        const providerId = PROVIDERS[settings.provider] ? settings.provider : 'nominatim'
+        goBtn.disabled = true
+        goBtn.textContent = '搜索中'
+        try {
+          const list = await PROVIDERS[providerId].search(q, searchContext())
+          if (!list.length) {
+            form.classList.add('err')
+            showMsg('未找到匹配的地点', true)
+          } else if (list.length === 1) {
+            renderResults(list)
+            goToResult(list[0])
+          } else {
+            renderResults(list)
+            showMsg('找到 ' + list.length + ' 个结果，点击选择（↑↓ 切换，回车确认）')
+          }
+        } catch (err) {
+          console.error(err)
+          form.classList.add('err')
+          if (err && err.message === 'NO_KEY') {
+            showMsg('该引擎需要 Key，请在设置中填写', true)
+            openSettings()
+          } else if (err && err.message === 'NO_URL') {
+            showMsg('请先在设置中填写自建服务的 Base URL', true)
+            openSettings()
+          } else if (providerId === 'nominatim' || providerId === 'custom') {
+            showMsg('联网搜索失败（服务不可达或 CORS 限制）', true)
+          } else {
+            showMsg('搜索失败：' + ((err && err.message) || '未知错误'), true)
+          }
+        } finally {
+          goBtn.disabled = false
+          goBtn.textContent = '搜索'
+        }
+      }
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault()
+        search(input.value)
+      })
+
+      input.addEventListener('keydown', (e) => {
+        if (resultsEl.hidden || !currentResults.length) return
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          setActive(activeIdx + 1)
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          setActive(activeIdx - 1)
+        } else if (e.key === 'Enter') {
+          e.preventDefault()
+          const r = currentResults[activeIdx]
+          if (r) goToResult(r)
+        } else if (e.key === 'Escape') {
+          hideResults()
+        }
+      })
+
+      helpBtn.addEventListener('click', () => {
+        const open = helpPanel.hidden
+        helpPanel.hidden = !open
+        helpBtn.classList.toggle('on', open)
+      })
+
+      scopeBtn.addEventListener('click', () => {
+        scopeInView = !scopeInView
+        scopeBtn.classList.toggle('on', scopeInView)
+        scopeBtn.title = scopeInView ? '仅搜索当前视野（点击切换为全局）' : '点击切换为「仅搜索当前视野」'
+        showMsg(scopeInView ? '地点搜索范围：当前视野内' : '地点搜索范围：全局')
+      })
+
+      // ── 左上角控件：设置按钮 + 图源/瓦片信息 ──
+      function createControl(className, html) {
+        const ctl = L.control({ position: 'topleft' })
+        ctl.onAdd = () => {
+          const el = L.DomUtil.create('div', className)
+          el.innerHTML = html
+          L.DomEvent.disableClickPropagation(el)
+          L.DomEvent.disableScrollPropagation(el)
+          return el
+        }
+        ctl.addTo(app.map)
+        return ctl.getContainer()
+      }
+
+      const GEAR_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10.6 3.09V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.42 1z"/></svg>'
+
+      // 左上角：设置 + 放大 + 缩小，合并为一组圆角按钮
+      const ctlGroup = createControl('mkt-ctl-group',
+        '<button type="button" data-ctl="settings" title="设置">' + GEAR_SVG + '</button>' +
+        '<button type="button" data-ctl="in" title="放大">+</button>' +
+        '<button type="button" data-ctl="out" title="缩小">&minus;</button>')
+      ctlGroup.querySelector('[data-ctl="settings"]').addEventListener('click', () => openSettings())
+      ctlGroup.querySelector('[data-ctl="in"]').addEventListener('click', () => app.map.zoomIn())
+      ctlGroup.querySelector('[data-ctl="out"]').addEventListener('click', () => app.map.zoomOut())
+
+      // 去掉 Leaflet 默认前缀里的乌克兰国旗（保留 Leaflet 链接）
+      if (app.map.attributionControl && app.map.attributionControl.setPrefix) {
+        app.map.attributionControl.setPrefix('<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>')
+      }
+
+      const infoEl = createControl('mkt-info-ctl',
+        '<table class="mkt-tile-table">' +
+        '<tr><td class="k">z</td><td class="v" id="ctlZ"></td></tr>' +
+        '<tr><td class="k">x</td><td class="v" id="ctlX"></td></tr>' +
+        '<tr><td class="k">y</td><td class="v" id="ctlY"></td></tr>' +
+        '</table>')
+      const ctlZ = infoEl.querySelector('#ctlZ')
+      const ctlX = infoEl.querySelector('#ctlX')
+      const ctlY = infoEl.querySelector('#ctlY')
+
+      function updateMapInfoCtl() {
+        const c = app.map.getCenter()
+        const z = app.map.getZoom()
+        const t = M.latLngToTile(c.lat, c.lng, z)
+        ctlZ.textContent = t.z
+        ctlX.textContent = t.x
+        ctlY.textContent = t.y
+      }
+      app.map.on('moveend zoomend', updateMapInfoCtl)
+      updateMapInfoCtl()
+
+      // ── 设置弹窗 ──
+      const VERIFY = {
+        amap: { btn: 'verifyAmap', status: 'verifyAmapStatus' },
+        tianditu: { btn: 'verifyTdt', status: 'verifyTdtStatus' },
+        custom: { btn: 'verifyCustom', status: 'verifyCustomStatus' },
+      }
+
+      function fillSourceSelect() {
+        const groups = {}
+        M.presets.forEach((p) => { (groups[p.group] = groups[p.group] || []).push(p) })
+        setSource.innerHTML = Object.keys(groups).map((g) =>
+          '<optgroup label="' + escapeHtml(g) + '">' + groups[g].map((p) => '<option value="' + p.id + '">' + escapeHtml(p.label) + '</option>').join('') + '</optgroup>'
+        ).join('')
+        const cur = app.getSourceId()
+        if (cur) setSource.value = cur
+      }
+
+      function refreshProviderOptions() {
+        Array.prototype.forEach.call(setProvider.options, (opt) => {
+          if (opt.value === 'nominatim') { opt.disabled = false; opt.textContent = 'OSM · Nominatim（免 Key，默认）'; return }
+          const ok = !!settings.verified[opt.value]
+          opt.disabled = !ok
+          const name = PROVIDERS[opt.value] ? PROVIDERS[opt.value].label : opt.value
+          opt.textContent = name + (ok ? '（已验证）' : '（未验证）')
+        })
+        if (setProvider.selectedOptions[0] && setProvider.selectedOptions[0].disabled) setProvider.value = 'nominatim'
+      }
+
+      function setVerifyStatus(id, text, kind) {
+        const el = document.getElementById(VERIFY[id].status)
+        if (el) { el.textContent = text; el.className = 'verify-status' + (kind ? ' ' + kind : '') }
+      }
+
+      async function verifyProvider(id) {
+        if (id === 'nominatim') return true
+        settings.amapKey = setAmapKey.value.trim()
+        settings.tdtKey = setTdtKey.value.trim()
+        settings.customUrl = setCustomUrl.value.trim()
+        setVerifyStatus(id, '验证中…', '')
+        const btn = document.getElementById(VERIFY[id].btn)
+        if (btn) btn.disabled = true
+        try {
+          const list = await PROVIDERS[id].search('北京', { bounded: false })
+          const ok = Array.isArray(list) && list.length > 0
+          settings.verified[id] = ok
+          setVerifyStatus(id, ok ? '✓ 可用' : '✗ 无结果', ok ? 'ok' : 'bad')
+        } catch (e) {
+          settings.verified[id] = false
+          setVerifyStatus(id, '✗ ' + ((e && e.message) || '失败'), 'bad')
+        } finally {
+          if (btn) btn.disabled = false
+          refreshProviderOptions()
+        }
+      }
+
+      function openSettings() {
+        setProvider.value = settings.provider
+        setAmapKey.value = settings.amapKey
+        setTdtKey.value = settings.tdtKey
+        setCustomUrl.value = settings.customUrl
+        fillSourceSelect()
+        refreshProviderOptions()
+        settingsOverlay.hidden = false
+      }
+
+      function closeSettings() {
+        settingsOverlay.hidden = true
+      }
+
+      document.getElementById('settingsClose').addEventListener('click', closeSettings)
+      settingsOverlay.addEventListener('click', (e) => { if (e.target === settingsOverlay) closeSettings() })
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !settingsOverlay.hidden) closeSettings()
+      })
+      document.getElementById('verifyAmap').addEventListener('click', () => verifyProvider('amap'))
+      document.getElementById('verifyTdt').addEventListener('click', () => verifyProvider('tianditu'))
+      document.getElementById('verifyCustom').addEventListener('click', () => verifyProvider('custom'))
+
+      document.getElementById('settingsSave').addEventListener('click', () => {
+        settings = {
+          provider: setProvider.value,
+          amapKey: setAmapKey.value.trim(),
+          tdtKey: setTdtKey.value.trim(),
+          customUrl: setCustomUrl.value.trim(),
+          source: setSource.value,
+          verified: settings.verified,
+        }
+        if (settings.provider !== 'nominatim' && !settings.verified[settings.provider]) settings.provider = 'nominatim'
+        saveSettings(settings)
+        if (setSource.value && setSource.value !== app.getSourceId()) {
+          app.setSource(setSource.value)
+          overlay.clearLayers()
+        }
+        updateMapInfoCtl()
+        closeSettings()
+        showMsg('设置已保存 · 引擎：' + (PROVIDERS[settings.provider] ? PROVIDERS[settings.provider].label : settings.provider) + ' · 图源：' + app.source.name)
+      })
+
+      document.getElementById('settingsReset').addEventListener('click', () => {
+        settings = Object.assign({}, DEFAULT_SETTINGS, { verified: {} })
+        saveSettings(settings)
+        setProvider.value = 'nominatim'
+        setAmapKey.value = ''
+        setTdtKey.value = ''
+        setCustomUrl.value = ''
+        fillSourceSelect()
+        refreshProviderOptions()
+        setVerifyStatus('amap', '')
+        setVerifyStatus('tianditu', '')
+        setVerifyStatus('custom', '')
+        showMsg('已恢复默认设置')
+      })
+
+      // 搜索结果附加信息里的操作按钮（事件委托，面板重绘也不失效）
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-result-act]')
+        if (!btn) return
+        const act = btn.getAttribute('data-result-act')
+        if (act === 'fit') {
+          fitResult()
+        } else if (act === 'clear') {
+          overlay.clearLayers()
+        } else if (act === 'copy') {
+          if (!currentResult) return
+          const txt = currentResult.lat.toFixed(6) + ', ' + currentResult.lng.toFixed(6)
+          if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(() => {})
+          showMsg('坐标：' + txt)
+        }
+      })
+
+      document.addEventListener('click', (e) => {
+        if (searchWrap && !searchWrap.contains(e.target)) {
+          hideResults()
+          helpPanel.hidden = true
+          helpBtn.classList.remove('on')
+        }
+      })
     })()
   </script>
 </body>

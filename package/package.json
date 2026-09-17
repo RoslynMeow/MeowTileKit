@@ -1,6 +1,6 @@
 {
   "name": "meow-tile-kit",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Multi-source map tile switching library with coordinate system support (WGS-84 / GCJ-02 / BD-09)",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -23,8 +23,10 @@
     "build": "npm run build:types && npm run build:bundle",
     "build:types": "tsc",
     "build:bundle": "tsup src/index.ts --format esm,iife --dts --clean --outDir dist --global-name MeowTileKit",
-    "dev": "tsc --watch",
-    "start": "node server.js",
+    "build:demo": "node scripts/build-demo.mjs",
+    "dev": "npm run build && npm run build:demo && node server.js",
+    "dev:no-watch": "npm run build && npm run build:demo && node server.js --no-watch",
+    "start": "node server.js --no-watch",
     "prepublishOnly": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest"

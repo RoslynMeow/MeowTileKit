@@ -1,4 +1,9 @@
 import type { CoordFormat } from './format.js';
+import {
+  decodeGeohash, decodeGeohash36, decodeGeoref, decodeUtm, decodeMgrs,
+  decodeCsquares, decodeImw, decodeMarsden, decodeQdgc, decodeWmo,
+  decodeNac, decodeOlc, decodeMapcode,
+} from './decoders.js';
 
 const BASE32 = '0123456789bcdefghjkmnpqrstuvwxyz';
 
@@ -49,66 +54,30 @@ export const geohash: CoordFormat = {
   formatLat: v => v.toFixed(6) + '°',
   formatLng: v => v.toFixed(6) + '°',
   coord(lat, lng) { return geohashEncode(lat, lng); },
+  parse: decodeGeohash,
 };
 
 // ── Geohash-36 ──
 const BASE36 = '0123456789abcdefghijklmnopqrstuvwxyz';
 
-function geohash36Encode(lat: number, lng: number, precision = 6): string {
-  let latRange: [number, number] = [-90, 90];
-  let lngRange: [number, number] = [-180, 180];
-  let bits = 0, bitCount = 0, hash = '';
-  // For base-36: each character encodes ~5.17 bits, use 2 chars for ~10 bits
-  const totalBits = precision * 2; // 2 chars give ~5184 cells -> ~0.5° precision
-  for (let i = 0; i < totalBits * 5; i++) {
-    const isLng = i % 2 === 0;
-    const range = isLng ? lngRange : latRange;
-    const mid = (range[0] + range[1]) / 2;
-    const val = isLng ? lng : lat;
-    if (val >= mid) {
-      bits = (bits << 1) | 1;
-      range[0] = mid;
-    } else {
-      bits = (bits << 1) | 0;
-      range[1] = mid;
-    }
-    bitCount++;
-    if (bitCount === 5) {
-      // encode 10 bits as 2 base-36 chars
-      const enc = bits.toString(36).padStart(2, '0');
-      hash += enc;
-      bits = 0;
-      bitCount = 0;
-    }
-  }
-  return hash;
-}
-
-// Actually, let me do it simpler: interleave bits as before but encode base-36 directly
+// Each base-36 character carries 5 bits (0-31), interleaved longitude-first.
 function geohash36(lat: number, lng: number, chars = 6): string {
-  // Each base-36 character = log2(36) ≈ 5.17 bits
-  // We'll encode 5 bits at a time, each 5-bit group becomes a base-36 char
   let latRange: [number, number] = [-90, 90];
   let lngRange: [number, number] = [-180, 180];
   let result = '';
-  let buf = 0, bufLen = 0;
-  const totalBits = Math.ceil(chars * Math.log2(36));
-  for (let i = 0; i < totalBits; i++) {
-    const isLng = i % 2 === 0;
-    const range = isLng ? lngRange : latRange;
-    const mid = (range[0] + range[1]) / 2;
-    const val = isLng ? lng : lat;
-    buf = (buf << 1) | (val >= mid ? 1 : 0);
-    if (val >= mid) range[0] = mid;
-    else range[1] = mid;
-    bufLen++;
-    if (bufLen === 5 || i === totalBits - 1) {
-      // Pad with zeros if needed
-      if (bufLen < 5) buf = buf << (5 - bufLen);
-      result += BASE36[buf];
-      buf = 0;
-      bufLen = 0;
+  for (let c = 0; c < chars; c++) {
+    let bits = 0;
+    for (let b = 0; b < 5; b++) {
+      const idx = c * 5 + b;
+      const isLng = idx % 2 === 0;
+      const range = isLng ? lngRange : latRange;
+      const mid = (range[0] + range[1]) / 2;
+      const val = isLng ? lng : lat;
+      bits = (bits << 1) | (val >= mid ? 1 : 0);
+      if (val >= mid) range[0] = mid;
+      else range[1] = mid;
     }
+    result += BASE36[bits];
   }
   return result;
 }
@@ -118,6 +87,7 @@ export const geohash36f: CoordFormat = {
   formatLat: v => v.toFixed(6) + '°',
   formatLng: v => v.toFixed(6) + '°',
   coord(lat, lng) { return geohash36(lat, lng); },
+  parse: decodeGeohash36,
 };
 
 // ── GEOREF ──
@@ -143,6 +113,7 @@ export const georef: CoordFormat = {
   formatLat: v => v.toFixed(6) + '°',
   formatLng: v => v.toFixed(6) + '°',
   coord(lat, lng) { return georefEncode(lat, lng); },
+  parse: decodeGeoref,
 };
 
 // ── IMW (International Map of the World) ──
@@ -173,16 +144,17 @@ export const imw: CoordFormat = {
   formatLat: v => v.toFixed(6) + '°',
   formatLng: v => v.toFixed(6) + '°',
   coord(lat, lng) { return imwEncode(lat, lng); },
+  parse: decodeImw,
 };
 
 // ── Marsden Square ──
 function marsdenEncode(lat: number, lng: number): string {
-  // 10° squares: longitude band 1-36 from 0°E
+  // 10° squares: longitude band 1-36 from 180°W
   const lngBand = ((Math.floor((lng + 180) / 10) % 36) + 1);
   const latBand = Math.floor((lat + 90) / 10);
   const latLetter = lat >= 0 ? 'N' : 'S';
-  const latDeg = Math.floor(Math.abs(lat) % 10);
-  const lngDeg = Math.floor(Math.abs(lng) % 10);
+  const latDeg = Math.floor((lat + 90) - latBand * 10);
+  const lngDeg = Math.floor((lng + 180) - (lngBand - 1) * 10);
   return `${latLetter}${String(latBand).padStart(2, '0')}-${String(lngBand).padStart(2, '0')} (${latDeg}°×${lngDeg}°)`;
 }
 
@@ -191,6 +163,7 @@ export const marsden: CoordFormat = {
   formatLat: v => v.toFixed(6) + '°',
   formatLng: v => v.toFixed(6) + '°',
   coord(lat, lng) { return marsdenEncode(lat, lng); },
+  parse: decodeMarsden,
 };
 
 // ── MGRS ──
@@ -219,30 +192,29 @@ export const mgrs: CoordFormat = {
   formatLat: v => v.toFixed(6) + '°',
   formatLng: v => v.toFixed(6) + '°',
   coord(lat, lng) { return mgrsEncode(lat, lng); },
+  parse: decodeMgrs,
 };
 
 // ── NAC (Natural Area Code) ──
+// Latitude (0-180 from the south pole) and longitude (0-360 from the
+// antimeridian) are each encoded as a fixed-precision base-N fraction.
+const NAC_ALPHABET = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+
 function nacEncode(lat: number, lng: number, chars = 8): string {
-  const alphabet = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // 30 chars (no I, O)
-  const base = alphabet.length;
-  // Normalize lat to [0, 180], lng to [0, 360]
-  const latNorm = lat + 90;
-  const lngNorm = lng + 180;
-  // Encode lat and lng separately
-  let latCode = '';
-  let lngCode = '';
-  let latV = latNorm;
-  let lngV = lngNorm;
-  const half = Math.ceil(chars / 2);
-  for (let i = 0; i < half; i++) {
-    latV *= base;
-    const idx = Math.floor(latV) % base;
-    latCode += alphabet[idx];
-    lngV *= base;
-    const jdx = Math.floor(lngV) % base;
-    lngCode += alphabet[jdx];
-  }
-  return `${latCode} ${lngCode}`;
+  const base = NAC_ALPHABET.length;
+  const half = Math.max(1, Math.round(chars / 2));
+  const encodeFrac = (frac: number): string => {
+    let s = '';
+    for (let i = 0; i < half; i++) {
+      frac *= base;
+      let d = Math.floor(frac);
+      if (d >= base) d = base - 1;
+      s += NAC_ALPHABET[d];
+      frac -= d;
+    }
+    return s;
+  };
+  return `${encodeFrac((lat + 90) / 180)} ${encodeFrac((lng + 180) / 360)}`;
 }
 
 export const nac: CoordFormat = {
@@ -250,55 +222,49 @@ export const nac: CoordFormat = {
   formatLat: v => v.toFixed(6) + '°',
   formatLng: v => v.toFixed(6) + '°',
   coord(lat, lng) { return nacEncode(lat, lng); },
+  parse: decodeNac,
 };
 
 // ── OLC (Open Location Code / Plus Codes) ──
-function olcEncode(lat: number, lng: number): string {
-  // OLC uses 20-character alphabet: 23456789CFGHJMPQRVWX
-  const CODE_ALPHABET = '23456789CFGHJMPQRVWX';
-  const ENCODING_BASE = 20;
-  const PAIR_CODE_LENGTH = 10; // 10 chars before '+'
-  const GRID_COLS = 4;
-  const GRID_ROWS = 5;
+const OLC_ALPHABET = '23456789CFGHJMPQRVWX';
 
-  // Clamp latitude
+function olcEncode(lat: number, lng: number, codeLength = 10): string {
   lat = Math.max(-90, Math.min(90, lat));
   lng = ((lng + 180) % 360 + 360) % 360 - 180;
 
-  // Pair encoding: 20×20 grid per pair
+  let latOffset = lat + 90;
+  let lngOffset = lng + 180;
+  let latRes = 20;
+  let lngRes = 20;
   let code = '';
-  let latVal = lat + 90;
-  let lngVal = lng + 180;
 
-  // First 4 pairs (8 chars) cover the whole globe
-  for (let i = 0; i < PAIR_CODE_LENGTH; i++) {
-    if (i % 2 === 0) {
-      // Even: longitude
-      const idx = Math.floor(lngVal / (20 / Math.pow(ENCODING_BASE, i / 2)));
-      code += CODE_ALPHABET[Math.floor(idx) % ENCODING_BASE];
-      lngVal -= idx * (20 / Math.pow(ENCODING_BASE, i / 2));
-    } else {
-      // Odd: latitude
-      const idx = Math.floor(latVal / (20 / Math.pow(ENCODING_BASE, (i - 1) / 2 + 1)));
-      code += CODE_ALPHABET[Math.floor(idx) % ENCODING_BASE];
-      latVal -= idx * (20 / Math.pow(ENCODING_BASE, (i - 1) / 2 + 1));
-    }
+  // Five pairs => ten digits (20° → 1° → 0.05° → 0.0025° → 0.000125°).
+  for (let i = 0; i < 5; i++) {
+    const latDigit = Math.min(19, Math.floor(latOffset / latRes));
+    const lngDigit = Math.min(19, Math.floor(lngOffset / lngRes));
+    code += OLC_ALPHABET[latDigit] + OLC_ALPHABET[lngDigit];
+    latOffset -= latDigit * latRes;
+    lngOffset -= lngDigit * lngRes;
+    if (i < 4) { latRes /= 20; lngRes /= 20; }
   }
 
-  // Add '+' separator
-  code = code.slice(0, 8) + '+' + code.slice(8, 10);
+  code = code.slice(0, 8) + '+' + code.slice(8);
 
-  // Refinement: add grid chars for more precision
-  // Grid encoding: GRID_COLS × GRID_ROWS per cell
-  const latGrid = latVal;
-  const lngGrid = lngVal;
-  for (let i = 0; i < 2; i++) {
-    const row = Math.floor(latGrid * GRID_ROWS / (20 / Math.pow(ENCODING_BASE, PAIR_CODE_LENGTH / 2)));
-    const col = Math.floor(lngGrid * GRID_COLS / (20 / Math.pow(ENCODING_BASE, PAIR_CODE_LENGTH / 2)));
-    if (row < GRID_ROWS && col < GRID_COLS) {
-      const charIdx = row * GRID_COLS + col;
-      code += CODE_ALPHABET[Math.min(charIdx, CODE_ALPHABET.length - 1)];
+  // Grid refinement: 5 rows (south→north) × 4 columns (west→east).
+  if (codeLength > 10) {
+    let rowRes = latRes / 5;
+    let colRes = lngRes / 4;
+    let grid = '';
+    for (let i = 10; i < codeLength; i++) {
+      const row = Math.min(4, Math.floor(latOffset / rowRes));
+      const col = Math.min(3, Math.floor(lngOffset / colRes));
+      grid += OLC_ALPHABET[row * 4 + col];
+      latOffset -= row * rowRes;
+      lngOffset -= col * colRes;
+      rowRes /= 5;
+      colRes /= 4;
     }
+    code += grid;
   }
 
   return code;
@@ -309,6 +275,7 @@ export const olc: CoordFormat = {
   formatLat: v => v.toFixed(6) + '°',
   formatLng: v => v.toFixed(6) + '°',
   coord(lat, lng) { return olcEncode(lat, lng); },
+  parse: decodeOlc,
 };
 
 // ── Mapcode ──
@@ -344,6 +311,7 @@ export const mapcode: CoordFormat = {
   formatLat: v => v.toFixed(6) + '°',
   formatLng: v => v.toFixed(6) + '°',
   coord(lat, lng) { return mapcodeEncode(lat, lng); },
+  parse: decodeMapcode,
 };
 
 // ── QDGC (Quarter Degree Grid Cells) ──
@@ -364,8 +332,8 @@ function qdgcEncode(lat: number, lng: number): string {
   const hemiLat = lat >= 0 ? 'N' : 'S';
   const hemiLng = lng >= 0 ? 'E' : 'W';
 
-  const qLabels = ['A', 'B', 'C', 'D']; // or 'ABCD' for quarter cells
-  const qLabel = qLabels[qLat * 2 + qLng]; // 0:A, 1:B, 2:C, 3:D
+  const qLabels = 'ABCDEFGHIJKLMNOP'; // 4×4 quarter-degree cells
+  const qLabel = qLabels[qLat * 4 + qLng];
 
   return `${hemiLat}${String(degLat).padStart(2, '0')}${hemiLng}${String(degLng).padStart(3, '0')}_${qLabel}`;
 }
@@ -375,6 +343,7 @@ export const qdgc: CoordFormat = {
   formatLat: v => v.toFixed(6) + '°',
   formatLng: v => v.toFixed(6) + '°',
   coord(lat, lng) { return qdgcEncode(lat, lng); },
+  parse: decodeQdgc,
 };
 
 // ── UTM ──
@@ -420,6 +389,7 @@ export const utm: CoordFormat = {
   formatLat: v => v.toFixed(6) + '°',
   formatLng: v => v.toFixed(6) + '°',
   coord(lat, lng) { return utmEncode(lat, lng); },
+  parse: decodeUtm,
 };
 
 // ── C-squares ──
@@ -427,8 +397,8 @@ function csquaresEncode(lat: number, lng: number, resolution = 5): string {
   // C-squares: global 10° × 10° grid, recursively subdivided by 10
   // Quadrant: 1=NE, 2=NW, 4=SE, 8=SW (but actually 1-7 for special cases)
   const quad = (lat >= 0 ? 0 : 2) + (lng >= 0 ? 1 : 0);
-  // Quadrant number: 1=(+lat,+lng), 2=(+lat,-lng), 4=(-lat,+lng), 8=(-lat,-lng)
-  const quadMap = [8, 4, 2, 1]; // SW, SE, NW, NE
+  // Quadrant number: 1=NE, 2=NW, 4=SE, 8=SW
+  const quadMap = [2, 1, 8, 4]; // NW, NE, SW, SE
   const q = quadMap[quad];
 
   let parts = [String(q)];
@@ -438,7 +408,7 @@ function csquaresEncode(lat: number, lng: number, resolution = 5): string {
   // 10° squares in the quadrant
   const lat10 = Math.floor(latAbs / 10);
   const lng10 = Math.floor(lngAbs / 10);
-  parts.push(String(lat10) + String(lng10));
+  parts.push(String(lat10).padStart(2, '0') + String(lng10).padStart(2, '0'));
 
   // Recursive subdivision by 10
   let latRem = latAbs - lat10 * 10;
@@ -461,18 +431,19 @@ export const csquares: CoordFormat = {
   formatLat: v => v.toFixed(6) + '°',
   formatLng: v => v.toFixed(6) + '°',
   coord(lat, lng) { return csquaresEncode(lat, lng); },
+  parse: decodeCsquares,
 };
 
 // ── WMO Squares ──
 function wmoEncode(lat: number, lng: number): string {
   // WMO 10° × 10° squares
-  // Longitude bands: 1-36 starting from 0°E
-  const lngBand = Math.floor(((lng + 180) % 360) / 10) + 1;
-  // Latitude bands: 01-18 from 90°S to 90°N (actually from equator poles)
+  // Longitude bands: 1-36 starting from 180°W
+  const lngBand = Math.floor((lng + 180) / 10) + 1;
+  // Latitude bands: 01-18 from 90°S to 90°N
   const latBand = Math.floor((lat + 90) / 10);
   // Sub-squares: 1° × 1° cells within the 10° square
-  const latSub = Math.floor(Math.abs(lat) % 10);
-  const lngSub = Math.floor(Math.abs(lng) % 10);
+  const latSub = Math.floor((lat + 90) - latBand * 10);
+  const lngSub = Math.floor((lng + 180) - (lngBand - 1) * 10);
   const hemi = lat >= 0 ? 'N' : 'S';
   return `${hemi}${String(latBand).padStart(2, '0')}-${String(lngBand).padStart(2, '0')} (${latSub}°×${lngSub}°)`;
 }
@@ -482,6 +453,7 @@ export const wmo: CoordFormat = {
   formatLat: v => v.toFixed(6) + '°',
   formatLng: v => v.toFixed(6) + '°',
   coord(lat, lng) { return wmoEncode(lat, lng); },
+  parse: decodeWmo,
 };
 
 // ── All encoding formats ──
