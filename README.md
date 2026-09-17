@@ -2,7 +2,6 @@
 
 [![npm version](https://img.shields.io/npm/v/meow-tile-kit?logo=npm&label=npm)](https://www.npmjs.com/package/meow-tile-kit)
 [![npm downloads](https://img.shields.io/npm/dm/meow-tile-kit)](https://www.npmjs.com/package/meow-tile-kit)
-[![Publish to npm](https://github.com/RoslynMeow/MeowTileKit/actions/workflows/publish.yml/badge.svg)](https://github.com/RoslynMeow/MeowTileKit/actions/workflows/publish.yml)
 [![Publish to GitHub Packages](https://github.com/RoslynMeow/MeowTileKit/actions/workflows/publish-github.yml/badge.svg)](https://github.com/RoslynMeow/MeowTileKit/actions/workflows/publish-github.yml)
 [![License](https://img.shields.io/npm/l/meow-tile-kit)](https://www.npmjs.com/package/meow-tile-kit)
 
@@ -33,6 +32,18 @@ npm run dev
 - `npm start`：只启动服务器，使用已有的 `dist`（不重新构建）。
 - 换端口：`PORT=5180 npm run dev`。
 - 也可以直接双击 `docs/index.html` 打开，但它走 unpkg 上的已发布版本（需联网加载 Leaflet CDN）。
+
+### 发布到 npm
+
+仓库根目录的 `publish.bat`（Windows）一键发布：
+
+```bat
+publish.bat 1.0.3     :: 先改版本再发布
+publish.bat           :: 用 package.json 当前版本发布
+```
+
+它会：设置版本（可选）→ 检查 `npm whoami` 登录 → 构建 → `npm publish --access public`。
+首次使用请先 `npm login`。发布完按提示 `git commit` / `git tag` 即可（GitHub Packages 镜像仍由 Actions 自动处理）。
 
 或者作为 npm 包引入项目：
 
