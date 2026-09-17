@@ -1,0 +1,39 @@
+# 把包同时镜像到 GitHub Packages（npm registry）。
+# 触发方式与 npmjs 发布一致：push 匹配 v* 的 tag。
+#
+# 注意：GitHub Packages 的 npm registry 只接受“作用域包”（@owner/name），
+# 因此这里在 CI 中把包名临时改为 @roslynmeow/meow-tile-kit 再发布；
+# 仓库里的 package.json 保持不变，npmjs 上仍是 meow-tile-kit。
+name: Publish to GitHub Packages
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: '@roslynmeow'
+
+      - run: cd package && npm ci
+      - run: cd package && npm run build
+
+      # GitHub Packages 要求作用域包名；仅在本步骤内修改，不提交
+      - name: Set scoped name for GitHub Packages
+        run: cd package && npm pkg set name=@roslynmeow/meow-tile-kit
+
+      - run: cd package && npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

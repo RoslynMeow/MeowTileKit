@@ -1,5 +1,11 @@
 # MeowTileKit
 
+[![npm version](https://img.shields.io/npm/v/meow-tile-kit?logo=npm&label=npm)](https://www.npmjs.com/package/meow-tile-kit)
+[![npm downloads](https://img.shields.io/npm/dm/meow-tile-kit)](https://www.npmjs.com/package/meow-tile-kit)
+[![Publish to npm](https://github.com/RoslynMeow/MeowTileKit/actions/workflows/publish.yml/badge.svg)](https://github.com/RoslynMeow/MeowTileKit/actions/workflows/publish.yml)
+[![Publish to GitHub Packages](https://github.com/RoslynMeow/MeowTileKit/actions/workflows/publish-github.yml/badge.svg)](https://github.com/RoslynMeow/MeowTileKit/actions/workflows/publish-github.yml)
+[![License](https://img.shields.io/npm/l/meow-tile-kit)](https://www.npmjs.com/package/meow-tile-kit)
+
 多源地图瓦片切换库，支持 WGS-84 / GCJ-02 坐标系统。
 
 ## 使用
