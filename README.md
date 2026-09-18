@@ -76,21 +76,79 @@ const { map, source, toLocal, toWgs84 } = createMap('map', {
   marker: true,            // 自动添加可拖拽标记
   drawer: true,            // 浮动坐标面板（可拖动）
   panelOpen: true,         // 加载后默认展开面板（默认 true）
+  url: true,               // 从 URL 查询串读取定位（见下）
   maxBounds: [[15,70], [55,140]],  // 可选：限制可视区域
 })
 ```
 
-- `toLocal(lat, lng)` — 将 WGS-84 转为当前图源的坐标系（用于放置标记）
+- `toLocal(lat, lng)` — 将 WGS-84 转为当前图源的坐标系（用于放置标记/绘制）
 - `toWgs84(lat, lng)` — 转回 WGS-84
 - `app.locate(input, format?, zoom?)` — 解析坐标并定位（见下）
-- `app.setSource(id)` / `app.getSourceId()` — 切换 / 读取底图图源
+- `app.locateFromUrl(opts?)` — 从 URL 查询串定位并返回 WGS-84 坐标（见下）
+- `app.setSource(id)` / `app.getSourceId()` — 切换 / 读取底图图源；**切换时按规范 WGS-84 保持视图中心与标记，不产生偏移**
 - `app.source` — 当前图源（`TileSource` 实例）
+- `app.on(event, handler)` / `app.off(...)` — 监听事件（含 `sourcechange`，见下）
 - `app.setPanelExtra(html)` — 在坐标面板里追加自定义 HTML（随面板重绘保留，传 `''` 清除）；`app.openPanel()` 展开面板
 
 浮动面板默认展开，只显示**当前坐标**：顶部大号显示当前格式的坐标（点击复制），下方为格式切换按钮与 WGS-84 / GCJ-02 / BD-09、ISO 6709、Geo URI、其他基准折叠。
 
-面板浮在地图右上角，拖动标题栏可移动位置，位置会被记住；`drawer: false` 可完全关闭，`panelOpen: false` 则默认收起（双击地图打开）。
+面板浮在地图右上角，拖动标题栏可移动位置，位置会被记住；`drawer: false` 可完全关闭，`panelOpen: false` 则默认收起（单击地图打开）。
+单击地图可放置/移动目标标记，标记也可拖动微调。
 坐标定位用 `app.locate()`；图源切换用 `app.setSource(id)`（不再在面板内）。
+
+### 跨图源绘制（核心：不偏移）
+
+规范坐标统一用 **WGS-84**。绘制时用 `toLocal()` 把规范坐标投影到当前图源坐标系；
+切换图源时监听 **`sourcechange`** 用保存的规范数据重新投影重绘，即可在任何底图上都对齐：
+
+```ts
+const app = createMap('map', { source: 'amap' })   // 高德 = GCJ-02
+let current = null                                  // 保存规范 WGS-84 的 GeoJSON
+
+function draw(data) {
+  current = data
+  const layer = L.geoJSON(data, {
+    renderer: L.canvas(),
+    coordsToLatLng: (c) => {                        // c = [lng, lat] (WGS-84)
+      const p = app.toLocal(c[1], c[0])
+      return L.latLng(p.lat, p.lng)
+    },
+  }).addTo(app.map)
+  layer.bringToFront()
+}
+
+app.on('sourcechange', () => { if (current) draw(current) })  // 换图自动重投影
+app.setSource('osm')                                // 中心/标记保持地理不变，图形不偏移
+```
+
+### URL 定位参数（GET）
+
+`createMap(..., { url: true })` 会在加载时读取当前 URL 查询串并定位；
+也可手动调用 `app.locateFromUrl({ search })` 或纯函数 `parseUrlLocation(search)`。
+
+**默认按标准数据 WGS-84 解释**，也可用 `crs` 指定其它标准：
+
+| 参数 | 说明 |
+|---|---|
+| `coord` | 任意受支持格式的坐标（`wx4g0bm`、`50N 449345 4417292`、`39.9,116.4`、DMS…） |
+| `lat` + `lng` | 经纬度（默认 WGS-84） |
+| `crs` | 输入坐标系：`wgs84`(默认) / `gcj02` / `bd09` |
+| `format` | 强制 `coord` 的格式 key（如 `utm`、`geohash`） |
+| `zoom` | 定位后的缩放级别 |
+
+```text
+?lat=39.9042&lng=116.4074                 # 默认 WGS-84
+?lat=39.9101&lng=116.4136&crs=gcj02       # 高德坐标，自动转 WGS-84 再定位
+?coord=wx4g0bm&zoom=14                    # Geohash
+?coord=50N 449345 4417292&format=utm      # UTM
+```
+
+```ts
+import { parseUrlLocation } from 'meow-tile-kit'
+const loc = parseUrlLocation('?coord=wx4g0bm&zoom=14')
+// { lat, lng, crs: 'wgs84', zoom: 14 }
+```
+
 
 可通过 `formats` 选项自定义格式列表：
 

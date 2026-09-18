@@ -1,6 +1,7 @@
 import type { TileSource, TileSourceOptions, LatLng } from './types.js';
 import { OSMSource, AMapSource, GoogleSource, TencentSource, CartoSource, EsriSource, OpenTopoSource, WikimediaSource } from './sources/index.js';
 import { wgs84ToGcj02, gcj02ToWgs84, wgs84ToBd09, bd09ToWgs84 } from './coord.js';
+import { parseUrlLocation } from './url.js';
 import { getPreset } from './presets.js';
 import { defaultFormats, parseCoord } from './format.js';
 import type { CoordFormat } from './format.js';
@@ -20,6 +21,11 @@ export interface CreateMapOptions {
   panelOpen?: boolean;
   /** 是否使用 Leaflet 内置缩放按钮，默认 true（关掉可自建控件） */
   zoomControl?: boolean;
+  /**
+   * 是否从 URL 查询串读取定位参数并定位。
+   * 传 `true` 启用；传 `{ apply: false }` 则只解析不自动定位（可稍后调 `app.locateFromUrl()`）。
+   */
+  url?: boolean | { apply?: boolean };
   /** 自定义坐标格式列表，默认内置全部格式（defaultFormats） */
   formats?: CoordFormat[];
 }
@@ -67,10 +73,20 @@ export interface MeowMap {
    * @returns 解析出的 WGS-84 坐标，失败返回 null。
    */
   locate(input: CoordParam, format?: string, zoom?: number): LatLng | null;
-  /** 切换底图图源（预设 id，如 `'osm'` / `'amap'`）。 */
+  /** 切换底图图源（预设 id，如 `'osm'` / `'amap'`）。切换时会按规范 WGS-84 保持视图中心与标记，不产生偏移。 */
   setSource(id: string): void;
   /** 当前图源的预设 id（传入 TileSource 实例时为空字符串）。 */
   getSourceId(): string;
+  /**
+   * 从 URL 查询串读取定位参数并（默认）定位。默认按标准 WGS-84 解释，`crs` 可指定其他标准。
+   * 支持 `coord` / `lat`+`lng` / `crs` / `format` / `zoom`。
+   * @returns 解析出的 WGS-84 坐标，失败返回 null。
+   */
+  locateFromUrl(options?: { search?: string; apply?: boolean }): LatLng | null;
+  /** 监听地图事件（含 `sourcechange`）。等价于 `app.map.on`。 */
+  on(event: string, handler: (...args: any[]) => void): void;
+  /** 取消监听。 */
+  off(event: string, handler: (...args: any[]) => void): void;
   /** 在坐标面板里追加自定义 HTML（随面板重绘保留）；传 '' 清除。 */
   setPanelExtra(html: string): void;
   /** 展开坐标面板。 */
@@ -418,11 +434,23 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
   }
 
   function switchSource(id: string): void {
+    const newSrc = resolveSource(id);
+
+    // 用「旧」坐标系把当前视图中心与标记转成规范 WGS-84
+    const c = map.getCenter();
+    const cWgs = toWgs84(c.lat, c.lng);
+    let mWgs: { lat: number; lng: number } | null = null;
+    if (marker && showMarker) {
+      const p = marker.getLatLng();
+      mWgs = toWgs84(p.lat, p.lng);
+    }
+    const zoom = map.getZoom();
+
     currentSourceId = id;
     saveSourceId(id);
-    const newSrc = resolveSource(id);
     source = newSrc;
-    // replace tile layer
+
+    // 替换瓦片层
     map.removeLayer(tileLayer);
     tileLayer = leaflet.tileLayer('', {
       tileSize: source.tileSize, maxZoom: source.maxZoom, minZoom: source.minZoom,
@@ -430,17 +458,23 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
     });
     tileLayer.getTileUrl = (c: any) => source.getTileUrl({ x: c.x, y: c.y, z: c.z });
     map.addLayer(tileLayer);
-    if (marker && showMarker) {
-      const p = marker.getLatLng();
-      const wgs = toWgs84(p.lat, p.lng);
-      const local = toLocal(wgs.lat, wgs.lng);
-      marker.setLatLng([local.lat, local.lng]);
+
+    // 用「新」坐标系把规范坐标投影回去，保持地理位置不变
+    const cNew = toLocal(cWgs.lat, cWgs.lng);
+    map.setView([cNew.lat, cNew.lng], zoom, { animate: false });
+    if (mWgs) {
+      const mNew = toLocal(mWgs.lat, mWgs.lng);
+      marker.setLatLng([mNew.lat, mNew.lng]);
     }
+
     // redraw drawer
     if (drawerOpen) {
       drawerEl!.innerHTML = fullDrawerHTML(currentLat, currentLng);
       bindDrawerEvents();
     }
+
+    // 通知外部（叠加物需按新坐标系重投影）
+    map.fire('sourcechange', { id, source });
   }
 
   function bindDrawerEvents(): void {
@@ -557,8 +591,10 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
       }).addTo(map);
       marker.on('dragend', () => {
         const p = marker.getLatLng();
-        savePos(p.lat, p.lng, map.getZoom());
-        updateDrawer(p.lat, p.lng);
+        const wgs = toWgs84(p.lat, p.lng);
+        currentLat = wgs.lat; currentLng = wgs.lng;
+        savePos(wgs.lat, wgs.lng, map.getZoom());
+        updateDrawer(wgs.lat, wgs.lng);
       });
     }
     return marker;
@@ -593,27 +629,35 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
     return local;
   }
 
-  // ── map click / dblclick ──
-  map.on('click', (e: any) => {
-    currentLat = e.latlng.lat; currentLng = e.latlng.lng;
-    savePos(e.latlng.lat, e.latlng.lng, map.getZoom());
-    updateDrawer(e.latlng.lat, e.latlng.lng);
-  });
-  map.on('dblclick', (e: any) => {
-    const { lat, lng } = e.latlng;
-    if (showMarker) {
-      ensureMarker(lat, lng);
-      marker.setLatLng([lat, lng]);
-      pulseMarker();
+  /** 从 URL 查询串读取定位参数并（默认）定位。 */
+  function locateFromUrl(options?: { search?: string; apply?: boolean }): LatLng | null {
+    const search = options?.search ?? (typeof window !== 'undefined' ? window.location.search : '');
+    const r = parseUrlLocation(search);
+    if (!r) return null;
+    if (options?.apply !== false) {
+      locate({ lat: r.lat, lng: r.lng }, undefined, r.zoom);
     }
-    savePos(lat, lng, map.getZoom());
-    if (showDrawer) openDrawer(lat, lng);
+    return { lat: r.lat, lng: r.lng };
+  }
+
+  // ── map click（单击放置/移动目标标记）──
+  map.on('click', (e: any) => {
+    const local = e.latlng;
+    const wgs = toWgs84(local.lat, local.lng);
+    currentLat = wgs.lat; currentLng = wgs.lng;
+    if (showMarker) {
+      const m = ensureMarker(local.lat, local.lng);
+      if (m) { m.setLatLng([local.lat, local.lng]); pulseMarker(); }
+    }
+    savePos(wgs.lat, wgs.lng, map.getZoom());
+    if (showDrawer) openDrawer(wgs.lat, wgs.lng);
   });
 
-  // auto-save on every map move/zoom
+  // auto-save on every map move/zoom（存规范 WGS-84）
   map.on('moveend', () => {
     const c = map.getCenter();
-    savePos(c.lat, c.lng, map.getZoom());
+    const wgs = toWgs84(c.lat, c.lng);
+    savePos(wgs.lat, wgs.lng, map.getZoom());
   });
 
   // try geolocation if no saved position
@@ -636,6 +680,12 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
   // open the floating panel by default
   if (showDrawer && panelOpen) openDrawer(clat, clng);
 
+  // 从 URL 读取定位（默认按标准 WGS-84）
+  if (options.url) {
+    const apply = typeof options.url === 'object' ? options.url.apply !== false : true;
+    locateFromUrl({ apply });
+  }
+
   return {
     map,
     get source() { return source; },
@@ -644,6 +694,9 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
     locate,
     setSource: switchSource,
     getSourceId: () => currentSourceId,
+    locateFromUrl,
+    on: (event: string, handler: (...args: any[]) => void) => { map.on(event, handler); },
+    off: (event: string, handler: (...args: any[]) => void) => { map.off(event, handler); },
     setPanelExtra,
     openPanel,
   };

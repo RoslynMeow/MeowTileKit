@@ -864,12 +864,17 @@
         return
       }
 
-      const app = window.MeowTileKit.createMap('map', { source: 'amap', zoomControl: false })
+      const app = window.MeowTileKit.createMap('map', { source: 'amap', zoomControl: false, url: true })
       setTimeout(hide, 400)
 
       const M = window.MeowTileKit
       const L = window.L
       const overlay = L.layerGroup().addTo(app.map)
+
+      // 切换底图坐标系后，用保存的规范 WGS-84 数据重投影重绘，避免偏移
+      app.on('sourcechange', () => {
+        if (currentResult) drawResult(currentResult)
+      })
 
       const form = document.getElementById('searchForm')
       const input = document.getElementById('searchInput')
@@ -1414,8 +1419,7 @@
         if (settings.provider !== 'nominatim' && !settings.verified[settings.provider]) settings.provider = 'nominatim'
         saveSettings(settings)
         if (setSource.value && setSource.value !== app.getSourceId()) {
-          app.setSource(setSource.value)
-          overlay.clearLayers()
+          app.setSource(setSource.value) // sourcechange 事件里会自动重绘当前几何
         }
         updateMapInfoCtl()
         closeSettings()

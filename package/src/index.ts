@@ -101,5 +101,9 @@ export {
 export { decodeCoord } from './decoders.js';
 export type { CoordParam } from './decoders.js';
 
+// ── URL 定位参数 ──
+export { parseUrlLocation } from './url.js';
+export type { UrlLocation, UrlCrs } from './url.js';
+
 // ── 投影工具 ──
 export { latLngToTile, tileToLatLng, tileBounds } from './projection.js';
