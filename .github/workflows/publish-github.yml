@@ -1,15 +1,12 @@
-# 把包同时镜像到 GitHub Packages（npm registry）。
-# 触发方式与 npmjs 发布一致：push 匹配 v* 的 tag。
-#
-# 注意：GitHub Packages 的 npm registry 只接受“作用域包”（@owner/name），
-# 因此这里在 CI 中把包名临时改为 @roslynmeow/meow-tile-kit 再发布；
-# 仓库里的 package.json 保持不变，npmjs 上仍是 meow-tile-kit。
+# 合并到 main 后，自动把版本号有更新的包发布到 GitHub Packages（npm registry）。
+# 无需 tag：逐个读取 packages/*/package.json 的 version，
+# 若该版本在 GitHub Packages 尚不存在，则以作用域名 @roslynmeow/<pkg> 发布，否则跳过。
 name: Publish to GitHub Packages
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -27,13 +24,30 @@ jobs:
           registry-url: https://npm.pkg.github.com
           scope: '@roslynmeow'
 
-      - run: cd package && npm ci
-      - run: cd package && npm run build
+      - run: npm ci
+      - run: npm run build
 
-      # GitHub Packages 要求作用域包名；仅在本步骤内修改，不提交
-      - name: Set scoped name for GitHub Packages
-        run: cd package && npm pkg set name=@roslynmeow/meow-tile-kit
-
-      - run: cd package && npm publish
+      - name: Publish new versions to GitHub Packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          publish_if_new() {
+            local dir="$1"
+            local pkg="$2"
+            local ver scoped
+            ver=$(node -p "require('./$dir/package.json').version")
+            scoped="@roslynmeow/$pkg"
+            if npm view "$scoped@$ver" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
+              echo "skip  $scoped@$ver (already published)"
+            else
+              echo "publish  $scoped@$ver"
+              cd "$dir"
+              npm pkg set name="$scoped"
+              npm publish
+              cd -
+            fi
+          }
+
+          publish_if_new packages/core meow-tile-kit-core
+          publish_if_new packages/ui   meow-tile-kit-ui
+          publish_if_new packages/meta meow-tile-kit

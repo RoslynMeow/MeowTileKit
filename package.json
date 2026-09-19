@@ -1,0 +1,23 @@
+{
+  "name": "meow-tile-kit-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w meow-tile-kit-core && npm run build -w meow-tile-kit-ui && npm run build -w meow-tile-kit",
+    "typecheck": "tsc -p packages/core/tsconfig.json --noEmit && tsc -p packages/ui/tsconfig.json --noEmit && tsc -p packages/meta/tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build:demo": "node scripts/build-demo.mjs",
+    "dev": "npm run build && npm run build:demo && node server.js",
+    "start": "node server.js"
+  },
+  "devDependencies": {
+    "happy-dom": "^20.14.5",
+    "tsup": "^8.5.1",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.10"
+  }
+}

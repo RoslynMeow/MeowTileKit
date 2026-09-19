@@ -1,0 +1,52 @@
+{
+  "name": "meow-tile-kit-core",
+  "version": "1.0.0",
+  "description": "MeowTileKit core — coordinate systems, geodetic datums, coordinate encodings, tile sources. No DOM / no Leaflet.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      },
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean --outDir dist",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "coordinate",
+    "gcj02",
+    "bd09",
+    "wgs84",
+    "geohash",
+    "utm",
+    "tile"
+  ],
+  "homepage": "https://github.com/RoslynMeow/MeowTileKit",
+  "bugs": {
+    "url": "https://github.com/RoslynMeow/MeowTileKit/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RoslynMeow/MeowTileKit.git",
+    "directory": "packages/core"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT"
+}

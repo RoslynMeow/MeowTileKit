@@ -1,0 +1,71 @@
+# 合并到 main 后：仅当 `packages/*/package.json` 的版本号有变化时，才按日期创建 GitHub Release
+# （tag 也用日期，如 2026.09.19）。各包版本号见 README 的「当前版本」表。
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect version changes
+        id: detect
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          getver() { node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{process.stdout.write(JSON.parse(s).version)}catch(e){}})"; }
+
+          before_sha="${{ github.event.before }}"
+          if [ -z "$before_sha" ] || [ "$before_sha" = "0000000000000000000000000000000000000000" ]; then
+            before_sha="HEAD^"
+          fi
+
+          changed=false
+          for p in core ui meta; do
+            after=$(node -p "require('./packages/$p/package.json').version")
+            before=$(git show "$before_sha:packages/$p/package.json" 2>/dev/null | getver)
+            echo "$p: ${before:-<none>} -> $after"
+            if [ "$before" != "$after" ]; then changed=true; fi
+          done
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Create date-based release
+        if: steps.detect.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date -u +%Y.%m.%d)
+          TAG="$DATE"
+          n=2
+          while git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; do
+            TAG="$DATE-$n"
+            n=$((n + 1))
+          done
+
+          CORE=$(node -p "require('./packages/core/package.json').version")
+          UI=$(node -p "require('./packages/ui/package.json').version")
+          META=$(node -p "require('./packages/meta/package.json').version")
+
+          git tag "$TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" \
+            --title "Release $DATE" \
+            --notes "包版本：
+          - meow-tile-kit-core: $CORE
+          - meow-tile-kit-ui: $UI
+          - meow-tile-kit: $META" \
+            --generate-notes \
+            --latest

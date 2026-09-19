@@ -253,6 +253,62 @@
       text-align: right
     }
 
+    /* ── legend ── */
+    .mkt-legend {
+      background: rgba(16, 16, 28, .82);
+      border-radius: 12px;
+      padding: 8px 10px;
+      font-size: 11px;
+      line-height: 1.8;
+      color: #cdcdda;
+      backdrop-filter: blur(10px);
+      white-space: nowrap
+    }
+
+    .mkt-legend-title {
+      font-size: 10px;
+      color: #6a6a80;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 3px
+    }
+
+    .mkt-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px
+    }
+
+    .mkt-sw {
+      flex-shrink: 0;
+      width: 14px;
+      height: 10px;
+      border-radius: 3px
+    }
+
+    .mkt-sw-poly {
+      background: rgba(74, 158, 255, .25);
+      border: 2px solid #4a9eff
+    }
+
+    .mkt-sw-bbox {
+      background: rgba(108, 92, 231, .12);
+      border: 1.5px dashed #6c5ce7
+    }
+
+    .mkt-sw-marker {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #4a9eff 0 3px, transparent 4px);
+      border: 2px solid #4a9eff;
+      box-sizing: border-box
+    }
+
+    .mkt-sw-base {
+      background: linear-gradient(90deg, #6c5ce7, #4a9eff);
+    }
+
     /* ── search result extra（注入到坐标面板里）── */
     .mkt-result-src {
       display: inline-block;
@@ -864,12 +920,17 @@
         return
       }
 
-      const app = window.MeowTileKit.createMap('map', { source: 'amap', zoomControl: false })
+      const app = window.MeowTileKit.createMap('map', { source: 'amap', zoomControl: false, url: true })
       setTimeout(hide, 400)
 
       const M = window.MeowTileKit
       const L = window.L
       const overlay = L.layerGroup().addTo(app.map)
+
+      // 切换底图坐标系后，用保存的规范 WGS-84 数据重投影重绘，避免偏移
+      app.on('sourcechange', () => {
+        if (currentResult) drawResult(currentResult)
+      })
 
       const form = document.getElementById('searchForm')
       const input = document.getElementById('searchInput')
@@ -1274,8 +1335,8 @@
       })
 
       // ── 左上角控件：设置按钮 + 图源/瓦片信息 ──
-      function createControl(className, html) {
-        const ctl = L.control({ position: 'topleft' })
+      function createControl(className, html, position) {
+        const ctl = L.control({ position: position || 'topleft' })
         ctl.onAdd = () => {
           const el = L.DomUtil.create('div', className)
           el.innerHTML = html
@@ -1323,6 +1384,17 @@
       }
       app.map.on('moveend zoomend', updateMapInfoCtl)
       updateMapInfoCtl()
+
+      // ── 图例 ──
+      const legendEl = createControl('mkt-legend',
+        '<div class="mkt-legend-title">图例</div>' +
+        '<div class="mkt-legend-item"><span class="mkt-sw mkt-sw-poly"></span>检索范围</div>' +
+        '<div class="mkt-legend-item"><span class="mkt-sw mkt-sw-bbox"></span>范围框</div>' +
+        '<div class="mkt-legend-item"><span class="mkt-sw mkt-sw-marker"></span>目标点</div>' +
+        '<div class="mkt-legend-item"><span class="mkt-sw mkt-sw-base"></span><span id="legendSrc"></span></div>', 'bottomleft')
+      const legendSrc = legendEl.querySelector('#legendSrc')
+      legendSrc.textContent = app.source.name
+      app.on('sourcechange', () => { legendSrc.textContent = app.source.name })
 
       // ── 设置弹窗 ──
       const VERIFY = {
@@ -1414,8 +1486,7 @@
         if (settings.provider !== 'nominatim' && !settings.verified[settings.provider]) settings.provider = 'nominatim'
         saveSettings(settings)
         if (setSource.value && setSource.value !== app.getSourceId()) {
-          app.setSource(setSource.value)
-          overlay.clearLayers()
+          app.setSource(setSource.value) // sourcechange 事件里会自动重绘当前几何
         }
         updateMapInfoCtl()
         closeSettings()
