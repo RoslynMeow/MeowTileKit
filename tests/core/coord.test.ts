@@ -9,7 +9,7 @@ import {
   bd09ToWgs84,
   isInChina,
   convertCoord,
-} from '../src/coord.js';
+} from 'meow-tile-kit-core';
 
 // 天安门 (WGS-84)
 const TIANANMEN_WGS = { lat: 39.9087, lng: 116.3975 };

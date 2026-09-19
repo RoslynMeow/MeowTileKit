@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseUrlLocation } from '../src/url.js';
-import { wgs84ToGcj02, wgs84ToBd09 } from '../src/coord.js';
+import { parseUrlLocation } from 'meow-tile-kit-core';
+import { wgs84ToGcj02, wgs84ToBd09 } from 'meow-tile-kit-core';
 
 const BJ = { lat: 39.9042, lng: 116.4074 };
 

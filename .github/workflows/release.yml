@@ -1,0 +1,46 @@
+# 合并到 main 后，自动按「日期」创建一个 GitHub Release（tag 也用日期，如 2026.09.19）。
+# 各包版本号见 README 的「版本」表。
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create date-based release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date -u +%Y.%m.%d)
+          TAG="$DATE"
+          n=2
+          while git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; do
+            TAG="$DATE-$n"
+            n=$((n + 1))
+          done
+
+          CORE=$(node -p "require('./packages/core/package.json').version")
+          UI=$(node -p "require('./packages/ui/package.json').version")
+          META=$(node -p "require('./packages/meta/package.json').version")
+
+          git tag "$TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" \
+            --title "Release $DATE" \
+            --notes "包版本：
+          - meow-tile-kit-core: $CORE
+          - meow-tile-kit-ui: $UI
+          - meow-tile-kit: $META" \
+            --generate-notes \
+            --latest

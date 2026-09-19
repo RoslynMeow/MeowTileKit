@@ -1,0 +1,72 @@
+{
+  "name": "meow-tile-kit-ui",
+  "version": "1.0.0",
+  "description": "MeowTileKit UI — Leaflet map + coordinate panel + <mkt-*> Web Components. Depends on meow-tile-kit-core.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      },
+      "default": "./dist/index.js"
+    },
+    "./elements": {
+      "import": {
+        "types": "./dist/elements.d.ts",
+        "default": "./dist/elements.js"
+      },
+      "require": {
+        "types": "./dist/elements.d.cts",
+        "default": "./dist/elements.cjs"
+      },
+      "default": "./dist/elements.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts src/elements.ts --format esm,cjs --dts --clean --outDir dist",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "meow-tile-kit-core": "^1.0.0"
+  },
+  "peerDependencies": {
+    "leaflet": "^1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "leaflet": {
+      "optional": true
+    }
+  },
+  "keywords": [
+    "map",
+    "leaflet",
+    "web-components",
+    "custom-elements",
+    "coordinate"
+  ],
+  "homepage": "https://github.com/RoslynMeow/MeowTileKit",
+  "bugs": {
+    "url": "https://github.com/RoslynMeow/MeowTileKit/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RoslynMeow/MeowTileKit.git",
+    "directory": "packages/ui"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT"
+}

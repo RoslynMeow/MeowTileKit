@@ -1,4 +1,4 @@
 node_modules
 dist
-package/demo
+demo
 *.tsbuildinfo

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { defaultFormats, parseCoord, extraFormats } from '../src/format.js';
-import { decodeCoord, decodeGeohash36, decodeNac, decodeOlc } from '../src/decoders.js';
+import { defaultFormats, parseCoord, extraFormats } from 'meow-tile-kit-core';
+import { decodeCoord, decodeGeohash36, decodeNac, decodeOlc } from 'meow-tile-kit-core';
 
 const POINTS = [
   { lat: 39.9042, lng: 116.4074 },   // 北京

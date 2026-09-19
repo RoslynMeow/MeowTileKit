@@ -1,0 +1,90 @@
+{
+  "name": "meow-tile-kit",
+  "version": "1.1.0",
+  "description": "Multi-source map tile switching library with coordinate system support (WGS-84 / GCJ-02 / BD-09). Umbrella package: core + ui.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "unpkg": "./dist/index.global.js",
+  "jsdelivr": "./dist/index.global.js",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      },
+      "default": "./dist/index.js"
+    },
+    "./core": {
+      "import": {
+        "types": "./dist/core.d.ts",
+        "default": "./dist/core.js"
+      },
+      "require": {
+        "types": "./dist/core.d.cts",
+        "default": "./dist/core.cjs"
+      },
+      "default": "./dist/core.js"
+    },
+    "./elements": {
+      "import": {
+        "types": "./dist/elements.d.ts",
+        "default": "./dist/elements.js"
+      },
+      "require": {
+        "types": "./dist/elements.d.cts",
+        "default": "./dist/elements.cjs"
+      },
+      "default": "./dist/elements.js"
+    },
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsup",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "meow-tile-kit-core": "^1.0.0",
+    "meow-tile-kit-ui": "^1.0.0"
+  },
+  "peerDependencies": {
+    "leaflet": "^1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "leaflet": {
+      "optional": true
+    }
+  },
+  "keywords": [
+    "map",
+    "tile",
+    "openstreetmap",
+    "amap",
+    "baidu",
+    "coordinate",
+    "gcj02",
+    "wgs84"
+  ],
+  "homepage": "https://github.com/RoslynMeow/MeowTileKit",
+  "bugs": {
+    "url": "https://github.com/RoslynMeow/MeowTileKit/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RoslynMeow/MeowTileKit.git",
+    "directory": "packages/meta"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT"
+}

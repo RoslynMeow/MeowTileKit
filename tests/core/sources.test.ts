@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OSMSource, AMapSource, GoogleSource, TencentSource } from '../src/sources/index.js';
+import { OSMSource, AMapSource, GoogleSource, TencentSource } from 'meow-tile-kit-core';
 
 describe('OSMSource', () => {
   const src = new OSMSource();

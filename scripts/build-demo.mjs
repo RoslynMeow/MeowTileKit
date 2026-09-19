@@ -1,17 +1,17 @@
-// 从 docs/index.html 生成一个“本地版本”的 Demo（用本地 dist 构建，而不是 CDN）。
-// 输出到 package/demo/index.html（该目录已在 .gitignore 中忽略）。
+// 从 docs/index.html 生成一个“本地版本”的 Demo（用本地 meta 构建，而不是 CDN）。
+// 输出到 repo 根 demo/index.html（该目录已在 .gitignore 中忽略）。
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const pkgRoot = resolve(here, '..');
-const docsFile = resolve(pkgRoot, '../docs/index.html');
-const outDir = resolve(pkgRoot, 'demo');
+const root = resolve(here, '..');
+const docsFile = resolve(root, 'docs/index.html');
+const outDir = resolve(root, 'demo');
 const outFile = resolve(outDir, 'index.html');
 
 const CDN_TAG = '<script src="https://unpkg.com/meow-tile-kit"></script>';
-const LOCAL_TAG = '<script src="../dist/index.global.js"></script>';
+const LOCAL_TAG = '<script src="../packages/meta/dist/index.global.js"></script>';
 
 let html;
 try {

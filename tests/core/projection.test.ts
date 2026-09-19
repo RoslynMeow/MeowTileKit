@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { latLngToTile, tileToLatLng, tileBounds } from '../src/projection.js';
+import { latLngToTile, tileToLatLng, tileBounds } from 'meow-tile-kit-core';
 
 describe('latLngToTile', () => {
   it('北京在 zoom 13', () => {

@@ -1,10 +1,8 @@
-import type { TileSource } from './types.js';
-import { wgs84ToGcj02, wgs84ToBd09, isInChina } from './coord.js';
-import { latLngToTile } from './projection.js';
-import { defaultFormats, extraFormats, parseCoord } from './format.js';
-import type { CoordFormat } from './format.js';
-import { computeDatums, iso6709, geoUri } from './datums.js';
-import { presets } from './presets.js';
+import type { TileSource, CoordFormat } from 'meow-tile-kit-core';
+import {
+  wgs84ToGcj02, wgs84ToBd09, isInChina, latLngToTile,
+  defaultFormats, extraFormats, parseCoord, computeDatums, iso6709, geoUri, presets,
+} from 'meow-tile-kit-core';
 
 export interface CoordPanelOptions {
   container: string | HTMLElement;

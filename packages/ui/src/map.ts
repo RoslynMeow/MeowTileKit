@@ -1,12 +1,8 @@
-import type { TileSource, TileSourceOptions, LatLng } from './types.js';
-import { OSMSource, AMapSource, GoogleSource, TencentSource, CartoSource, EsriSource, OpenTopoSource, WikimediaSource } from './sources/index.js';
-import { wgs84ToGcj02, gcj02ToWgs84, wgs84ToBd09, bd09ToWgs84 } from './coord.js';
-import { parseUrlLocation } from './url.js';
-import { getPreset } from './presets.js';
-import { defaultFormats, parseCoord } from './format.js';
-import type { CoordFormat } from './format.js';
-import type { CoordParam } from './decoders.js';
-import { computeDatums, iso6709, geoUri } from './datums.js';
+import type { TileSource, TileSourceOptions, LatLng, CoordFormat, CoordParam } from 'meow-tile-kit-core';
+import {
+  resolveSource, wgs84ToGcj02, gcj02ToWgs84, wgs84ToBd09, bd09ToWgs84,
+  parseUrlLocation, defaultFormats, parseCoord, computeDatums, iso6709, geoUri,
+} from 'meow-tile-kit-core';
 
 export interface CreateMapOptions {
   source: string | TileSource;
@@ -38,27 +34,6 @@ function getLeaflet(): any {
   if (typeof window !== 'undefined') L = (window as any).L;
   if (!L) throw new Error('Leaflet (L) not found. Load Leaflet before using createMap.');
   return L;
-}
-
-export function resolveSource(source: string | TileSource, sourceOptions?: TileSourceOptions & Record<string, unknown>): TileSource {
-  if (typeof source !== 'string') return source;
-  const preset = getPreset(source);
-  if (preset) return preset.create();
-  switch (source) {
-    case 'osm': return new OSMSource(sourceOptions);
-    case 'amap': return new AMapSource(sourceOptions as any);
-    case 'tencent': return new TencentSource(sourceOptions as any);
-    case 'google': return new GoogleSource(sourceOptions as any);
-    case 'carto': return new CartoSource(sourceOptions as any);
-    case 'esri': return new EsriSource(sourceOptions as any);
-    case 'opentopo': return new OpenTopoSource(sourceOptions);
-    case 'wikimedia': return new WikimediaSource();
-    default: throw new Error(`Unknown source: ${source}`);
-  }
-}
-
-export function createTileSource(type: string, options?: TileSourceOptions & Record<string, unknown>): TileSource {
-  return resolveSource(type, options);
 }
 
 export interface MeowMap {

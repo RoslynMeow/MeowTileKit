@@ -1,0 +1,144 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>mkt-* 元素示例（新写法）</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans SC", sans-serif;
+      background: #0b0b14;
+      color: #d4d4d8
+    }
+
+    .wrap {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      height: 100vh
+    }
+
+    .side {
+      padding: 16px;
+      border-left: 1px solid #1a1a28;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px
+    }
+
+    mkt-map {
+      height: 100%;
+      display: block
+    }
+
+    h3 {
+      margin: 0
+    }
+
+    h4 {
+      margin: 8px 0 0
+    }
+
+    code {
+      background: rgba(255, 255, 255, .06);
+      padding: 1px 5px;
+      border-radius: 4px
+    }
+
+    button {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(74, 158, 255, .4);
+      background: rgba(74, 158, 255, .16);
+      color: #cfe4ff;
+      cursor: pointer
+    }
+
+    mkt-output {
+      background: #0e0e18;
+      border: 1px solid #1a1a28;
+      border-radius: 8px;
+      padding: 8px;
+      max-height: 140px;
+      overflow: auto
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <!-- 地图：默认有缩放 +/- 和设置；用 settings="false" 关掉内置齿轮，改用 <mkt-settings> -->
+    <mkt-map id="m" source="amap" center="39.9042,116.4074" zoom="11" settings="false"></mkt-map>
+
+    <aside class="side">
+      <h3>&lt;mkt-map&gt; + 部件（新写法）</h3>
+      <p>引入 <code>meow-tile-kit/elements</code> 即自动注册标签；部件用 <code>for</code> 关联地图，位置随意。</p>
+
+      <h4>&lt;mkt-search for="m"&gt;</h4>
+      <mkt-search for="m" placeholder="搜索坐标或地点（如 天安门 / wx4g0bm）"></mkt-search>
+
+      <h4>&lt;mkt-info for="m"&gt;（选中搜索结果后出现）</h4>
+      <mkt-info for="m"></mkt-info>
+
+      <h4>&lt;mkt-coord-panel for="m"&gt;</h4>
+      <mkt-coord-panel for="m"></mkt-coord-panel>
+
+      <h4>&lt;mkt-legend for="m"&gt;</h4>
+      <mkt-legend for="m"></mkt-legend>
+
+      <h4>&lt;mkt-settings for="m"&gt; / &lt;mkt-scale for="m"&gt;</h4>
+      <mkt-settings for="m"></mkt-settings>
+      <mkt-scale for="m"></mkt-scale>
+
+      <h4>&lt;mkt-output format="state"&gt;</h4>
+      <mkt-output for="m" format="state"></mkt-output>
+
+      <div>
+        <button id="btn">setData() 画面</button>
+        <button id="clr">clearData()</button>
+      </div>
+    </aside>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="../packages/meta/dist/elements.global.js"></script>
+  <script>
+    const m = document.getElementById('m')
+
+    // 搜索框接一个地点地理编码（示例用 OSM Nominatim；坐标搜索本身不需要）
+    const search = document.querySelector('mkt-search')
+    search.geocoder = async (q) => {
+      const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&q=' + encodeURIComponent(q)
+      const res = await fetch(url, { headers: { Accept: 'application/json' } })
+      const arr = await res.json()
+      return (arr || []).map((r) => ({ name: r.display_name, lat: parseFloat(r.lat), lng: parseFloat(r.lon) }))
+    }
+
+    // 图例条目
+    document.querySelector('mkt-legend').setItems([
+      { label: '检索范围', color: '#4a9eff', type: 'poly' },
+      { label: '高铁线路', color: '#ff5a5a', type: 'line' },
+      { label: '车站', color: '#39d3c3', type: 'point' },
+      { label: '范围框', color: '#6c5ce7', type: 'box' },
+    ])
+
+    document.getElementById('btn').addEventListener('click', () => {
+      // 规范 WGS-84 的线（示例高铁），会按当前图源自动投影
+      m.setData({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: [[116.30, 39.90], [116.40, 39.905], [116.50, 39.92]],
+        },
+      })
+    })
+
+    document.getElementById('clr').addEventListener('click', () => m.clearData())
+  </script>
+</body>
+
+</html>
