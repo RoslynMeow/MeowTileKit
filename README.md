@@ -3,6 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/meow-tile-kit?logo=npm&label=npm)](https://www.npmjs.com/package/meow-tile-kit)
 [![npm downloads](https://img.shields.io/npm/dm/meow-tile-kit)](https://www.npmjs.com/package/meow-tile-kit)
 [![Publish to GitHub Packages](https://github.com/RoslynMeow/MeowTileKit/actions/workflows/publish-github.yml/badge.svg)](https://github.com/RoslynMeow/MeowTileKit/actions/workflows/publish-github.yml)
+[![Release](https://github.com/RoslynMeow/MeowTileKit/actions/workflows/release.yml/badge.svg)](https://github.com/RoslynMeow/MeowTileKit/actions/workflows/release.yml)
 [![License](https://img.shields.io/npm/l/meow-tile-kit)](https://www.npmjs.com/package/meow-tile-kit)
 
 多源地图瓦片切换库，支持 WGS-84 / GCJ-02 坐标系统。
@@ -10,12 +11,22 @@
 ## 包结构（monorepo）
 
 | 目录 | 包 | 说明 |
-|---|---|---|
+| --- | --- | --- |
 | `packages/core` | `meow-tile-kit-core` | 底层：坐标转换/格式编解码/基准/投影/图源，**无 DOM、无 Leaflet** |
 | `packages/ui` | `meow-tile-kit-ui` | 前端：`createMap` / `CoordPanel` / `<mkt-*>` 元素 |
 | `packages/meta` | `meow-tile-kit` | 伞包：core + ui（含 `/core`、`/elements` 子入口） |
 
 `docs/` 在线 Demo · `tests/` 单元测试 · `examples/` 示例页。
+
+### 当前版本
+
+| 包 | 版本 |
+| --- | --- |
+| `meow-tile-kit-core` | 1.0.0 |
+| `meow-tile-kit-ui` | 1.0.0 |
+| `meow-tile-kit` | 1.1.0 |
+
+> 每次发版更新此表。GitHub Release 由 CI **按日期**自动创建（tag 也是日期，如 `2026.09.19`），无需手动打标签。
 
 ## 安装
 
@@ -53,8 +64,11 @@ npm run dev         # 构建 + 生成 demo + 启动本地静态服务器
 - **GitHub Packages**：**无需 tag**。合并到 `main` 后，`Publish to GitHub Packages` workflow 会逐个读取各包 `package.json` 的版本，
   若该版本在 GitHub Packages 尚不存在，就以 `@roslynmeow/<pkg>` 发布；已存在的自动跳过（也可在 Actions 页手动触发）。
 
-> 所以：发 npm 用 `publish.bat`；发 GitHub Packages 只需把改好版本号的提交合并到 `main`。
+- **GitHub Release**：合并到 `main` 后，**仅当任一包 `package.json` 的版本号发生变化时**才创建（`Release` workflow），
+  **按日期**命名（tag 也用日期，如 `2026.09.19`），正文含三个包的版本与自动变更说明；同一天多次发版会加后缀 `-2`、`-3`。
+  纯文档/代码合并（版本号没变）不会产生 Release。包版本号同时记录在 README「当前版本」表里。
 
+> 所以：发 npm 用 `publish.bat`；发 GitHub Packages / 建 Release 只需把改好版本号的提交合并到 `main`。
 
 或者作为 npm 包引入项目：
 
@@ -76,7 +90,7 @@ const { map, source, toLocal } = createMap('map', {
 ## 三个包 / 入口
 
 | 包 | 入口 | 依赖 | 内容 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `meow-tile-kit-core` | `.` | **无** | 坐标转换、格式编解码、大地基准、投影、图源、URL 定位参数 |
 | `meow-tile-kit-ui` | `.` / `./elements` | core + Leaflet(可选 peer) | `createMap` / `CoordPanel` / `<mkt-*>` |
 | `meow-tile-kit` | `.` / `./core` / `./elements` | core + ui | 伞包；兼容原 `import ... from 'meow-tile-kit'` |
@@ -102,7 +116,7 @@ import 'meow-tile-kit-ui/elements'      // 注册 <mkt-*>
 引入即**自动注册**一组原生自定义元素，用标签即可搭建，零框架依赖：
 
 | 标签 | 作用 |
-|---|---|
+| --- | --- |
 | `<mkt-map>` | 地图宿主。**默认只有缩放 +/− 和设置**（左上齿轮，可切换图源）；`settings="false"` 可关掉内置齿轮改用 `<mkt-settings>` |
 | `<mkt-search for="...">` | 搜索框（坐标开箱即用；地点搜索给 `.geocoder` 赋值，或监听 `mkt:search`）；选中派发 `mkt:result` |
 | `<mkt-info for="...">` | 结果信息卡（监听 `mkt:result`；也可 `show(data)` / `clear()`） |
@@ -123,7 +137,7 @@ import 'meow-tile-kit-ui/elements'      // 注册 <mkt-*>
 `<mkt-output>` 与 `exportGeoJSON()` 的 `crs` 决定**导出的坐标系**：
 
 | `crs` | 含义 |
-|---|---|
+| --- | --- |
 | `wgs84`（默认） | **规范坐标**，跨图源稳定 —— 推荐用于导出/存储/分享 |
 | `display` | 当前底图坐标系（GCJ-02/BD-09/WGS-84，随切换图源而变） |
 | `gcj02` / `bd09` | 固定目标坐标系 |
@@ -135,6 +149,7 @@ import 'meow-tile-kit-ui/elements'      // 注册 <mkt-*>
 <!-- 导出与当前底图一致的坐标（切图源会跟着变） -->
 <mkt-output for="m" format="state" crs="display"></mkt-output>
 ```
+
 > 切换图源时：`setData` 的规范数据不变，仅**显示**重投影；因此默认输出**不会漂移**。
 > 需要“所见即所导”时才用 `crs="display"`。
 
@@ -229,7 +244,7 @@ app.setSource('osm')                                // 中心/标记保持地理
 **默认按标准数据 WGS-84 解释**，也可用 `crs` 指定其它标准：
 
 | 参数 | 说明 |
-|---|---|
+| --- | --- |
 | `coord` | 任意受支持格式的坐标（`wx4g0bm`、`50N 449345 4417292`、`39.9,116.4`、DMS…） |
 | `lat` + `lng` | 经纬度（默认 WGS-84） |
 | `crs` | 输入坐标系：`wgs84`(默认) / `gcj02` / `bd09` |
@@ -248,7 +263,6 @@ import { parseUrlLocation } from 'meow-tile-kit'
 const loc = parseUrlLocation('?coord=wx4g0bm&zoom=14')
 // { lat, lng, crs: 'wgs84', zoom: 14 }
 ```
-
 
 可通过 `formats` 选项自定义格式列表：
 
@@ -333,7 +347,7 @@ import { presets } from 'meow-tile-kit'
 所有预设一览：
 
 | 预设 ID | 标签 | 组 |
-|---|---|---|
+| --- | --- | --- |
 | `osm` | OpenStreetMap | WGS-84 |
 | `google` | Google 地图 | WGS-84 |
 | `google-sat` | Google 卫星图 | WGS-84 |
@@ -358,7 +372,7 @@ import { presets } from 'meow-tile-kit'
 内置 16 种坐标格式，全部作为 `CoordFormat` 实现，可通过 `formats` 选项选择：
 
 | 格式 | 示例 (北京) | 导出名 |
-|---|---|---|
+| --- | --- | --- |
 | `°` | `39.904200°, 116.407400°` | — |
 | `° '` | `39° 54.2520', 116° 24.4440'` | — |
 | `° ' "` | `39° 54' 15.120", 116° 24' 26.640"` | — |
@@ -398,7 +412,7 @@ const pt = wgs84ToNad83(39.9042, 116.4074)
 ```
 
 | 函数 | 基准 | 说明 |
-|---|---|---|
+| --- | --- | --- |
 | `wgs84ToNad83()` | NAD 83 | 北美（≈WGS 84） |
 | `wgs84ToEtrs89()` | ETRS89 | 欧洲（≈WGS 84） |
 | `wgs84ToOsgb36()` | OSGB36 | 英国 |
