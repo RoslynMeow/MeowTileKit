@@ -21,6 +21,8 @@ export interface CreateMapOptions {
   panelOpen?: boolean;
   /** 是否使用 Leaflet 内置缩放按钮，默认 true（关掉可自建控件） */
   zoomControl?: boolean;
+  /** 是否显示比例尺，默认 true */
+  scale?: boolean;
   /**
    * 是否从 URL 查询串读取定位参数并定位。
    * 传 `true` 启用；传 `{ apply: false }` 则只解析不自动定位（可稍后调 `app.locateFromUrl()`）。
@@ -251,6 +253,13 @@ export function createMap(container: string | HTMLElement, options: CreateMapOpt
   });
   tileLayer.getTileUrl = (c: any) => source.getTileUrl({ x: c.x, y: c.y, z: c.z });
   map.addLayer(tileLayer);
+
+  // scale bar
+  let scaleControl: any = null;
+  if (options.scale !== false) {
+    scaleControl = leaflet.control.scale({ position: 'bottomleft', imperial: false, metric: true });
+    scaleControl.addTo(map);
+  }
 
   // ── drawer ──
   let drawerEl: HTMLElement | null = null;

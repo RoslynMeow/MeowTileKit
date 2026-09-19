@@ -77,6 +77,7 @@ const { map, source, toLocal, toWgs84 } = createMap('map', {
   drawer: true,            // 浮动坐标面板（可拖动）
   panelOpen: true,         // 加载后默认展开面板（默认 true）
   url: true,               // 从 URL 查询串读取定位（见下）
+  scale: true,             // 比例尺（默认 true）
   maxBounds: [[15,70], [55,140]],  // 可选：限制可视区域
 })
 ```
