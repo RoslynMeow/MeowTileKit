@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>mkt-* 元素示例 · MeowTileKit</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans SC", sans-serif;
+      background: #0b0b14;
+      color: #d4d4d8
+    }
+
+    .wrap {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      height: 100vh
+    }
+
+    .side {
+      padding: 16px;
+      border-left: 1px solid #1a1a28;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px
+    }
+
+    mkt-map {
+      height: 100%;
+      display: block
+    }
+
+    h3 {
+      margin: 0
+    }
+
+    h4 {
+      margin: 8px 0 0
+    }
+
+    code {
+      background: rgba(255, 255, 255, .06);
+      padding: 1px 5px;
+      border-radius: 4px
+    }
+
+    .hint {
+      margin: 0;
+      font-size: 11.5px;
+      color: #6a6a80;
+      line-height: 1.7
+    }
+
+    .io-label {
+      font-size: 11px;
+      color: #6a6a80;
+      margin-top: 4px
+    }
+
+    .io {
+      width: 100%;
+      height: 400px;
+      min-height: 400px;
+      flex: 0 0 auto;
+      resize: vertical;
+      box-sizing: border-box;
+      background: #0e0e18;
+      color: #b9b9cc;
+      border: 1px solid #1a1a28;
+      border-radius: 8px;
+      padding: 8px;
+      font-family: "SF Mono", ui-monospace, Menlo, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      outline: none
+    }
+
+    .io:focus {
+      border-color: rgba(74, 158, 255, .55)
+    }
+
+    button {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(74, 158, 255, .4);
+      background: rgba(74, 158, 255, .16);
+      color: #cfe4ff;
+      cursor: pointer
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <!-- 地图：默认有缩放 +/- 和设置；用 settings="false" 关掉内置齿轮，改用 <mkt-settings> -->
+    <mkt-map id="m" source="amap" center="39.9042,116.4074" zoom="9" settings="false"></mkt-map>
+
+    <aside class="side">
+      <h3>&lt;mkt-map&gt; + 部件（元素写法）</h3>
+      <p>引入元素入口即自动注册标签；部件用 <code>for</code> 关联地图，位置随意。</p>
+
+      <h4>&lt;mkt-search for="m"&gt;</h4>
+      <mkt-search for="m" placeholder="搜索坐标或地点（如 天安门 / wx4g0bm）"></mkt-search>
+
+      <h4>&lt;mkt-info for="m"&gt;（选中搜索结果后出现）</h4>
+      <mkt-info for="m"></mkt-info>
+
+      <h4>&lt;mkt-coord-panel for="m"&gt;</h4>
+      <mkt-coord-panel for="m"></mkt-coord-panel>
+
+      <h4>&lt;mkt-legend for="m"&gt;</h4>
+      <mkt-legend for="m"></mkt-legend>
+
+      <h4>&lt;mkt-settings for="m"&gt; / &lt;mkt-scale for="m"&gt;</h4>
+      <mkt-settings for="m"></mkt-settings>
+      <mkt-scale for="m"></mkt-scale>
+
+      <h4>数据出口</h4>
+      <label class="io-label">state（m.getState()）</label>
+      <textarea class="io" id="outState" spellcheck="false"></textarea>
+      <label class="io-label">geojson（m.exportGeoJSON()）</label>
+      <textarea class="io" id="outGeo" spellcheck="false"></textarea>
+      <p class="hint">直接编辑这两段 JSON：state 改图源/中心/缩放，geojson 改绘制内容；网页监听输入后调用 <code>m.setData()</code> / <code>m.locate()</code> 实时生效，格式错误弹窗。</p>
+
+      <div>
+        <button id="btn">setData()</button>
+        <button id="clr">clearData()</button>
+      </div>
+    </aside>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/meow-tile-kit@1.1.0/dist/elements.global.js"></script>
+  <script>
+    const m = document.getElementById('m')
+
+    // 搜索框接一个地点地理编码（示例用 OSM Nominatim；坐标搜索本身不需要）
+    const search = document.querySelector('mkt-search')
+    search.geocoder = async (q) => {
+      const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&q=' + encodeURIComponent(q)
+      const res = await fetch(url, { headers: { Accept: 'application/json' } })
+      const arr = await res.json()
+      return (arr || []).map((r) => ({ name: r.display_name, lat: parseFloat(r.lat), lng: parseFloat(r.lon) }))
+    }
+
+    // 图例条目
+    document.querySelector('mkt-legend').setItems([
+      { label: '北京市', color: '#4a9eff', type: 'poly' },
+      { label: '目标点', color: '#39d3c3', type: 'point' },
+    ])
+
+    // 默认绘制数据：北京市行政边界（规范 WGS-84，已简化；来源 OSM/Nominatim）
+    const BEIJING = {"type":"Feature","properties":{"name":"北京市"},"geometry":{"type":"MultiPolygon","coordinates":[[[[115.4168,39.9684],[115.5632,39.8128],[115.4189,39.7724],[115.4859,39.7376],[115.5082,39.5907],[115.6615,39.6146],[115.746,39.5105],[115.8226,39.5058],[115.9042,39.5999],[115.9511,39.5598],[115.9737,39.5947],[116.1978,39.5876],[116.2517,39.4993],[116.4281,39.4416],[116.3952,39.5267],[116.4377,39.5084],[116.5602,39.6188],[116.7757,39.5921],[116.9006,39.6766],[116.8936,39.7579],[116.948,39.7857],[116.9115,39.8459],[116.7797,39.8879],[116.7718,40.0314],[117.1928,40.066],[117.398,40.1818],[117.2179,40.3696],[117.2576,40.4401],[117.202,40.4995],[117.3053,40.5766],[117.415,40.5678],[117.4144,40.6338],[117.5081,40.6591],[116.9634,40.705],[116.8701,40.8198],[116.7073,40.9087],[116.6861,41.0391],[116.6249,41.0592],[116.5959,40.9743],[116.4497,40.9793],[116.4679,40.8944],[116.3279,40.9195],[116.4554,40.7681],[116.3027,40.7504],[116.2415,40.7903],[116.1153,40.6276],[115.9773,40.5775],[115.9018,40.6161],[115.7469,40.5374],[115.7645,40.4413],[115.9123,40.3528],[115.9629,40.2628],[115.8921,40.2354],[115.8458,40.1469],[115.7721,40.1767],[115.7286,40.1283],[115.593,40.119],[115.4168,39.9684]]],[[[117.4993,39.2238],[117.5777,39.1773],[117.6291,39.2096],[117.4993,39.2238]]],[[[117.5984,39.2566],[117.7127,39.1723],[117.7371,39.2369],[117.7029,39.2765],[117.5984,39.2566]]]]}}
+
+    // ── 数据出口（网页自己实现：读 API 写入文本框，编辑后调 API 实时生效）──
+    const outGeo = document.getElementById('outGeo')
+    const outState = document.getElementById('outState')
+    const pretty = (o) => (o == null ? '' : JSON.stringify(o, null, 2))
+
+    const refreshGeo = () => { if (document.activeElement !== outGeo) outGeo.value = pretty(m.exportGeoJSON()) }
+    const refreshState = () => { if (document.activeElement !== outState) outState.value = pretty(m.getState()) }
+
+    m.addEventListener('mkt:state', refreshState)
+    m.addEventListener('mkt:sourcechange', refreshState)
+    m.addEventListener('mkt:data', refreshGeo)
+
+    const bindEdit = (area, apply) => {
+      let timer = null
+      area.addEventListener('input', () => {
+        clearTimeout(timer)
+        timer = setTimeout(() => {
+          let value
+          try {
+            value = JSON.parse(area.value)
+          } catch (err) {
+            alert('JSON 解析错误：\n' + err.message)
+            return
+          }
+          apply(value)
+        }, 400)
+      })
+    }
+
+    bindEdit(outGeo, (v) => m.setData(v))
+    bindEdit(outState, (v) => {
+      if (v && v.sourceId && v.sourceId !== m.getSourceId()) m.setSource(v.sourceId)
+      const p = v && (v.marker || v.center)
+      if (p && typeof p.lat === 'number' && typeof p.lng === 'number') {
+        m.locate([p.lat, p.lng], undefined, v.zoom)
+      }
+    })
+
+    // 初始：绘制北京市并填充两个文本框
+    m.setData(BEIJING)
+    refreshGeo()
+    refreshState()
+
+    document.getElementById('btn').addEventListener('click', () => m.setData(BEIJING))
+    document.getElementById('clr').addEventListener('click', () => m.clearData())
+  </script>
+</body>
+
+</html>

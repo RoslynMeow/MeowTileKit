@@ -1,32 +1,50 @@
-// 从 docs/index.html 生成一个“本地版本”的 Demo（用本地 meta 构建，而不是 CDN）。
-// 输出到 repo 根 demo/index.html（该目录已在 .gitignore 中忽略）。
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+// 从 docs/ 生成“本地版”示例到 demo/（把 unpkg 固定版本替换为本地构建的相对路径）。
+// - 复制 docs/ 下所有 .html 到 demo/（含 legacy/）
+// - 非 legacy 页面：`https://unpkg.com/meow-tile-kit@<meta版本>` → 相对路径 `.../packages/meta/dist`
+// - legacy 页面保持 unpkg 固定版本（旧版只能从 CDN 取）
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, rmSync } from 'node:fs';
+import { dirname, resolve, relative, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
-const docsFile = resolve(root, 'docs/index.html');
+const docsDir = resolve(root, 'docs');
 const outDir = resolve(root, 'demo');
-const outFile = resolve(outDir, 'index.html');
+const metaVersion = JSON.parse(readFileSync(resolve(root, 'packages/meta/package.json'), 'utf8')).version;
+const CDN_PREFIX = `https://unpkg.com/meow-tile-kit@${metaVersion}/dist`;
 
-const CDN_TAG = '<script src="https://unpkg.com/meow-tile-kit"></script>';
-const LOCAL_TAG = '<script src="../packages/meta/dist/index.global.js"></script>';
-
-let html;
-try {
-  html = readFileSync(docsFile, 'utf8');
-} catch {
-  console.error(`[build-demo] 找不到 ${docsFile}`);
-  process.exit(1);
+function walk(dir) {
+  const out = [];
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) out.push(...walk(full));
+    else out.push(full);
+  }
+  return out;
 }
 
-if (!html.includes(CDN_TAG)) {
-  console.error('[build-demo] docs/index.html 里没找到 unpkg 脚本标签，无法替换为本地构建');
-  process.exit(1);
+rmSync(outDir, { recursive: true, force: true });
+
+let count = 0;
+let replaced = 0;
+for (const file of walk(docsDir)) {
+  if (!file.endsWith('.html')) continue;
+  const rel = relative(docsDir, file);
+  const isLegacy = rel.split(sep)[0] === 'legacy';
+
+  let html = readFileSync(file, 'utf8');
+  if (!isLegacy && html.includes(CDN_PREFIX)) {
+    // demo/<rel> 到 repo 根的相对前缀
+    const depth = rel.split(sep).length;         // 顶层文件为 1
+    const up = '../'.repeat(depth);
+    html = html.split(CDN_PREFIX).join(`${up}packages/meta/dist`);
+    replaced++;
+  }
+
+  const out = resolve(outDir, rel);
+  mkdirSync(dirname(out), { recursive: true });
+  writeFileSync(out, html);
+  count++;
 }
 
-html = html.replace(CDN_TAG, LOCAL_TAG);
-mkdirSync(outDir, { recursive: true });
-writeFileSync(outFile, html);
-console.log(`[build-demo] 已生成 ${outFile}`);
+console.log(`[build-demo] generated ${count} file(s) in ${outDir} (rewrote ${replaced}, meta@${metaVersion})`);

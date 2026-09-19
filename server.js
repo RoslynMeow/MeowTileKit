@@ -66,8 +66,8 @@ server.on('error', (err) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`\n  MeowTileKit  →  http://localhost:${PORT}/demo/`);
-  console.log(`  元素示例     →  http://localhost:${PORT}/examples/elements.html\n`);
+  console.log(`\n  MeowTileKit 示例画廊  →  http://localhost:${PORT}/demo/`);
+  console.log(`  （元素示例 /demo/elements.html，极简 /demo/minimal.html，完整 /demo/classic.html）\n`);
   if (OPEN) openBrowser(`http://localhost:${PORT}/demo/`);
 });
 

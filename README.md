@@ -3,7 +3,6 @@
 [![npm version](https://img.shields.io/npm/v/meow-tile-kit?logo=npm&label=npm)](https://www.npmjs.com/package/meow-tile-kit)
 [![npm downloads](https://img.shields.io/npm/dm/meow-tile-kit)](https://www.npmjs.com/package/meow-tile-kit)
 [![Publish to GitHub Packages](https://github.com/RoslynMeow/MeowTileKit/actions/workflows/publish-github.yml/badge.svg)](https://github.com/RoslynMeow/MeowTileKit/actions/workflows/publish-github.yml)
-[![Release](https://github.com/RoslynMeow/MeowTileKit/actions/workflows/release.yml/badge.svg)](https://github.com/RoslynMeow/MeowTileKit/actions/workflows/release.yml)
 [![License](https://img.shields.io/npm/l/meow-tile-kit)](https://www.npmjs.com/package/meow-tile-kit)
 
 多源地图瓦片切换库，支持 WGS-84 / GCJ-02 坐标系统。
@@ -16,17 +15,17 @@
 | `packages/ui` | `meow-tile-kit-ui` | 前端：`createMap` / `CoordPanel` / `<mkt-*>` 元素 |
 | `packages/meta` | `meow-tile-kit` | 伞包：core + ui（含 `/core`、`/elements` 子入口） |
 
-`docs/` 在线 Demo · `tests/` 单元测试 · `examples/` 示例页。
+`docs/` 示例画廊（Pages 源）· `tests/` 单元测试。示例页（`classic` / `elements` / `minimal` / 旧版本）都在 `docs/` 下。
 
 ### 当前版本
 
-| 包 | 版本 |
-| --- | --- |
-| `meow-tile-kit-core` | 1.0.0 |
-| `meow-tile-kit-ui` | 1.0.0 |
-| `meow-tile-kit` | 1.1.0 |
+| 包 | 版本 | Badge |
+| --- | --- | --- |
+| `meow-tile-kit-core` | 1.0.0 | [![npm](https://img.shields.io/npm/v/meow-tile-kit-core?logo=npm)](https://www.npmjs.com/package/meow-tile-kit-core) |
+| `meow-tile-kit-ui` | 1.0.0 | [![npm](https://img.shields.io/npm/v/meow-tile-kit-ui?logo=npm)](https://www.npmjs.com/package/meow-tile-kit-ui) |
+| `meow-tile-kit` | 1.1.0 | [![npm](https://img.shields.io/npm/v/meow-tile-kit?logo=npm)](https://www.npmjs.com/package/meow-tile-kit) |
 
-> 每次发版更新此表。GitHub Release 由 CI **按日期**自动创建（tag 也是日期，如 `2026.09.19`），无需手动打标签。
+> 每次发版更新此表。
 
 ## 安装
 
@@ -46,10 +45,12 @@ npm run typecheck   # 各包 tsc 类型检查
 npm run dev         # 构建 + 生成 demo + 启动本地静态服务器
 ```
 
-- `npm run dev` 会从 `docs/index.html` 生成本地版 Demo 到 `demo/`（用本地构建而非 CDN），并打开 <http://localhost:5173/demo/>；元素示例在 <http://localhost:5173/examples/elements.html>。
+- `npm run dev`：构建 → 由 `docs/` 生成 `demo/`（把 unpkg 固定版本换成**本地相对路径**）→ 打开示例画廊 <http://localhost:5173/demo/>。
+  - 画廊入口列出各示例：`classic`（完整）、`elements`（元素）、`minimal`（极简），以及折叠的**旧版本**列表。
+  - 线上页面用 unpkg 固定版本；本地生成的 `demo/` 用相对路径加载本地构建。
 - `npm start`：只启动服务器（需先 build）。
 - 换端口：`PORT=5180 npm run dev`。
-- 在线 Demo：[https://roslynmeow.github.io/MeowTileKit/](https://roslynmeow.github.io/MeowTileKit/)（unpkg 上的已发布版本）。
+- 在线示例画廊：[https://roslynmeow.github.io/MeowTileKit/](https://roslynmeow.github.io/MeowTileKit/)。
 
 ### 发布
 
@@ -64,11 +65,7 @@ npm run dev         # 构建 + 生成 demo + 启动本地静态服务器
 - **GitHub Packages**：**无需 tag**。合并到 `main` 后，`Publish to GitHub Packages` workflow 会逐个读取各包 `package.json` 的版本，
   若该版本在 GitHub Packages 尚不存在，就以 `@roslynmeow/<pkg>` 发布；已存在的自动跳过（也可在 Actions 页手动触发）。
 
-- **GitHub Release**：合并到 `main` 后，**仅当任一包 `package.json` 的版本号发生变化时**才创建（`Release` workflow），
-  **按日期**命名（tag 也用日期，如 `2026.09.19`），正文含三个包的版本与自动变更说明；同一天多次发版会加后缀 `-2`、`-3`。
-  纯文档/代码合并（版本号没变）不会产生 Release。包版本号同时记录在 README「当前版本」表里。
-
-> 所以：发 npm 用 `publish.bat`；发 GitHub Packages / 建 Release 只需把改好版本号的提交合并到 `main`。
+> 所以：发 npm 用 `publish.bat`；发 GitHub Packages 只需把改好版本号的提交合并到 `main`。
 
 或者作为 npm 包引入项目：
 
@@ -173,8 +170,8 @@ import 'meow-tile-kit-ui/elements'      // 注册 <mkt-*>
 </script>
 ```
 
-完整示例见 `package/examples/elements.html`（本地 `npm run dev` 后访问
-`http://localhost:5173/examples/elements.html`）。
+完整示例见 `docs/elements.html`（本地 `npm run dev` 后访问
+`http://localhost:5173/demo/elements.html`，或线上示例画廊里的「元素 Demo」）。
 
 ## API
 
